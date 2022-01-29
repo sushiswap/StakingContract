@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
-import "../lib/solmate/src/utils/SafeTransferLib.sol";
+import "lib/solmate/src/utils/SafeTransferLib.sol";
 
 /* 
     Permissionless staking contract that allows any number of incentives to be running for any token (erc20).
@@ -175,7 +175,7 @@ contract StakingContract {
     }
 
     /// @dev Since we have to delete the incentive from an array, pass its index instead of its id to avoid an array search.
-    function unsubscribeFromIncentive(address token, uint256 incentiveIndex) external {
+    function unsubscribeFromIncentive(address token, uint256 incentiveIndex, bool ignoreRewards) external {
 
         UserStake storage userStake = userStakes[msg.sender][token];
 
@@ -187,7 +187,10 @@ contract StakingContract {
 
         _accrueRewards(incentive);
 
-        _claimReward(incentive, incentiveId, msg.sender, userStake.liquidity);
+        /// In case there is an issue with transfering rewards we can ignore them.
+        if (!ignoreRewards) _claimReward(incentive, incentiveId, msg.sender, userStake.liquidity);
+
+        rewardPerLiquidityLast[msg.sender][incentiveId] = 0;
 
         unchecked { incentive.liquidityStaked -= uint128(userStake.liquidity); }
 
@@ -207,9 +210,7 @@ contract StakingContract {
 
             _accrueRewards(incentive);
 
-            UserStake memory userStake = userStakes[msg.sender][incentive.token];
-
-            _claimReward(incentive, incentiveIds[i], msg.sender, userStake.liquidity);
+            _claimReward(incentive, incentiveIds[i], msg.sender, userStakes[msg.sender][incentive.token].liquidity);
 
         }
 
