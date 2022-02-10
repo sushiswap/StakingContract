@@ -2,5 +2,6 @@
 
 pragma solidity 0.8.11;
 
+import './IStakingContractActions.sol';
 import './IStakingContractEvents.sol';
-interface IStakingContract is IStakingContractEvents {}
+interface IStakingContract is IStakingContractActions, IStakingContractEvents {}
