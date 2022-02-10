@@ -3,6 +3,8 @@ pragma solidity 0.8.11;
 
 import "lib/solmate/src/utils/SafeTransferLib.sol";
 
+import "./IStakingContract.sol";
+
 /* 
     Permissionless staking contract that allows any number of incentives to be running for any token (erc20).
     Incentives can be created by anyone, the total reward amount must be sent at creation.
@@ -10,7 +12,7 @@ import "lib/solmate/src/utils/SafeTransferLib.sol";
     Users can deposit their assets into the contract and then subscribe to any of the available incentives.
  */
 
-contract StakingContract {
+contract StakingContract is IStakingContract {
 
     using SafeTransferLib for ERC20;
 
@@ -40,6 +42,7 @@ contract StakingContract {
         uint256[] incentiveIds;
     }
 
+    /// @inheritdoc IStakingContractActions
     function createIncentive(
         address token,
         address rewardToken,
@@ -67,8 +70,10 @@ contract StakingContract {
             rewardPerLiquidity: 1
         });
 
+        emit Created(token, rewardToken, rewardAmount, startTime, endTime);
     }
 
+    /// @inheritdoc IStakingContractActions
     function updateIncentive(
         uint256 incentiveId,
         uint128 transferIn,
@@ -106,8 +111,11 @@ contract StakingContract {
             ERC20(incentive.rewardToken).safeTransfer(msg.sender, transferOut);
         }
 
+        emit Updated(incentiveId, transferIn, transferOut, newStartTime, newEndTime);
+
     }
 
+    /// @inheritdoc IStakingContractActions
     function stakeToken(address token, uint128 amount) external {
 
         ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
@@ -130,8 +138,11 @@ contract StakingContract {
 
         userStake.liquidity += amount;
 
+        emit Staked(token, amount);
+
     }
 
+    /// @inheritdoc IStakingContractActions
     function unstakeToken(address token, uint128 amount) external {
 
         UserStake storage userStake = userStakes[msg.sender][token];
@@ -154,8 +165,11 @@ contract StakingContract {
 
         ERC20(token).safeTransfer(msg.sender, amount);
 
+        emit Unstaked(token, amount);
+
     }
 
+    /// @inheritdoc IStakingContractActions
     function subscribeToIncentive(uint256 incentiveId) external {
 
         require(rewardPerLiquidityLast[msg.sender][incentiveId] == 0, "Already subscribed");
@@ -172,8 +186,9 @@ contract StakingContract {
 
         incentive.liquidityStaked += userStake.liquidity;
 
+        emit Subscribed(incentiveId);
     }
-
+    
     /// @dev Since we have to delete the incentive from an array, pass its index instead of its id to avoid an array search.
     function unsubscribeFromIncentive(address token, uint256 incentiveIndex, bool ignoreRewards) external {
 
@@ -198,8 +213,11 @@ contract StakingContract {
 
         userStake.incentiveIds.pop();
 
+        emit Unsubscribed(token, incentiveIndex, ignoreRewards);
+
     }
 
+    /// @inheritdoc IStakingContractActions
     function claimRewards(uint256[] calldata incentiveIds) external {
 
         uint256 n = incentiveIds.length;
@@ -214,6 +232,7 @@ contract StakingContract {
 
         }
 
+        emit Claimed(incentiveIds);
     }
 
     function _accrueRewards(Incentive storage incentive) internal {
