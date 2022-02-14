@@ -1,15 +1,49 @@
 {
   "_format": "ethers-rs-sol-cache-1",
   "files": {
-    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/Stake.sol": {
-      "lastModificationDate": 1641864284209,
-      "contentHash": "c211faa5c725dde0fc047857e70da742",
-      "sourceName": "src/Stake.sol",
+    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/lib/ds-test/src/test.sol": {
+      "lastModificationDate": 1640301388368,
+      "contentHash": "5d45a46528eaf8a26f0a8d93669f3148",
+      "sourceName": "lib/ds-test/src/test.sol",
       "solcConfig": {
         "settings": {
           "optimizer": {
-            "enabled": false,
-            "runs": 200
+            "enabled": true,
+            "runs": 9999
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london"
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.4.23"
+      ],
+      "artifacts": [
+        "DSTest"
+      ]
+    },
+    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/StakingContractMainnet.sol": {
+      "lastModificationDate": 1644802900039,
+      "contentHash": "3fd21e595bc17d4a9bd9e2072a03ffc5",
+      "sourceName": "src/StakingContractMainnet.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 9999
           },
           "outputSelection": {
             "*": {
@@ -28,24 +62,94 @@
         }
       },
       "imports": [
-        "../lib/solmate/src/utils/SafeTransferLib.sol"
+        "lib/solmate/src/utils/SafeTransferLib.sol",
+        "./libraries/PackedUint144.sol",
+        "./test/Console.sol"
       ],
       "versionPragmas": [
-        "^0.8.6"
+        "0.8.11"
       ],
       "artifacts": [
-        "Stake"
+        "StakingContractMainnet"
       ]
     },
-    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/Stake.t.sol": {
-      "lastModificationDate": 1641692802968,
-      "contentHash": "26bf8670d7a28a13d1b45bca2b91f481",
-      "sourceName": "src/Stake.t.sol",
+    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/libraries/PackedUint144.sol": {
+      "lastModificationDate": 1644626810399,
+      "contentHash": "245712957fbfd2ea79f22c191ead3c51",
+      "sourceName": "src/libraries/PackedUint144.sol",
       "solcConfig": {
         "settings": {
           "optimizer": {
-            "enabled": false,
-            "runs": 200
+            "enabled": true,
+            "runs": 9999
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london"
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.8.0"
+      ],
+      "artifacts": [
+        "PackedUint144"
+      ]
+    },
+    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/test/Console.sol": {
+      "lastModificationDate": 1644771660177,
+      "contentHash": "d260393281467f65b76bdaffcad2be22",
+      "sourceName": "src/test/Console.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 9999
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london"
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.4.22 <0.9.0"
+      ],
+      "artifacts": [
+        "console"
+      ]
+    },
+    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/test/PackedUint144.t.sol": {
+      "lastModificationDate": 1644626850950,
+      "contentHash": "423e53b08bc56ce79ce39dbfdbf35809",
+      "sourceName": "src/test/PackedUint144.t.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 9999
           },
           "outputSelection": {
             "*": {
@@ -65,24 +169,24 @@
       },
       "imports": [
         "ds-test/test.sol",
-        "./Stake.sol"
+        "../libraries/PackedUint144.sol"
       ],
       "versionPragmas": [
-        "^0.8.6"
+        "0.8.11"
       ],
       "artifacts": [
-        "StakeTest"
+        "PackedUintTest"
       ]
     },
-    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/StakingContract.sol": {
-      "lastModificationDate": 1643258450209,
-      "contentHash": "5898384f26784610288fc5509867ade5",
-      "sourceName": "src/StakingContract.sol",
+    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/test/StakingContractMainnet.t.sol": {
+      "lastModificationDate": 1644803578702,
+      "contentHash": "a2e295a30bc4f41e95a30f3e7ec4537f",
+      "sourceName": "src/test/StakingContractMainnet.t.sol",
       "solcConfig": {
         "settings": {
           "optimizer": {
-            "enabled": false,
-            "runs": 200
+            "enabled": true,
+            "runs": 9999
           },
           "outputSelection": {
             "*": {
@@ -101,24 +205,24 @@
         }
       },
       "imports": [
-        "../lib/solmate/src/utils/SafeTransferLib.sol"
+        "./TestSetup.sol"
       ],
       "versionPragmas": [
         "0.8.11"
       ],
       "artifacts": [
-        "StakingContract"
+        "CreateIncentiveTest"
       ]
     },
-    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/StakingContract.t.sol": {
-      "lastModificationDate": 1643258524381,
-      "contentHash": "25546ba8e2b492b72931a8d087f0c766",
-      "sourceName": "src/StakingContract.t.sol",
+    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/test/TestSetup.sol": {
+      "lastModificationDate": 1644803612031,
+      "contentHash": "32b79501ba88be137c9231c088614c0d",
+      "sourceName": "src/test/TestSetup.sol",
       "solcConfig": {
         "settings": {
           "optimizer": {
-            "enabled": false,
-            "runs": 200
+            "enabled": true,
+            "runs": 9999
           },
           "outputSelection": {
             "*": {
@@ -138,13 +242,52 @@
       },
       "imports": [
         "ds-test/test.sol",
-        "./StakingContract.sol"
+        "../StakingContractMainnet.sol",
+        "./mock/Token.sol",
+        "./Console.sol"
       ],
       "versionPragmas": [
         "0.8.11"
       ],
       "artifacts": [
-        "StakingContractTest"
+        "TestSetup",
+        "Vm"
+      ]
+    },
+    "/mnt/c/Users/Gasper/gasper-crypto/sushi/chef/src/test/mock/Token.sol": {
+      "lastModificationDate": 1643374262354,
+      "contentHash": "426a53fe3d923e92bfe908c0acb3c13d",
+      "sourceName": "src/test/mock/Token.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 9999
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london"
+        }
+      },
+      "imports": [
+        "lib/solmate/src/tokens/ERC20.sol"
+      ],
+      "versionPragmas": [
+        "0.8.11"
+      ],
+      "artifacts": [
+        "Token"
       ]
     }
   }
