@@ -150,7 +150,7 @@ contract StakingContractMainnet {
         stakeToken(token, amount);
 
         uint256 n = incentives.length;
-        for (uint256 i = 0; i < n; i++) {
+        for (uint256 i = 0; i < n; i = _increment(i)) {
             subscribeToIncentive(incentives[i]);
         }
 
