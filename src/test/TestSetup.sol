@@ -9,6 +9,8 @@ import "./Console.sol";
 interface Vm {
     function prank(address) external;
     function warp(uint256) external;
+    function expectRevert(bytes memory) external;
+    function expectRevert(bytes4) external;
 }
 
 contract TestSetup is DSTest {
@@ -20,6 +22,10 @@ contract TestSetup is DSTest {
     
     uint256 MAX_UINT256 = type(uint256).max;
     uint112 MAX_UINT112 = type(uint112).max;
+
+    bytes4 invalidTimeFrame = bytes4(keccak256("InvalidTimeFrame()"));
+    bytes4 panic = 0x4e487b71;
+    bytes overflow = abi.encodePacked(panic, bytes32(uint256(0x11)));
 
     StakingContractMainnet stakingContract = new StakingContractMainnet();
 
@@ -77,6 +83,11 @@ contract TestSetup is DSTest {
         uint256 thisBalance = Token(rewardToken).balanceOf(address(this));
         uint256 stakingContractBalance = Token(rewardToken).balanceOf(address(stakingContract));
 
+        if (endTime <= startTime || endTime <= block.timestamp) {
+            vm.expectRevert(invalidTimeFrame);
+            return stakingContract.createIncentive(token, rewardToken, amount, startTime, endTime);
+        }
+
         uint256 id = stakingContract.createIncentive(token, rewardToken, amount, startTime, endTime);
 
         StakingContractMainnet.Incentive memory incentive = _getIncentive(id);
@@ -106,11 +117,32 @@ contract TestSetup is DSTest {
         uint256 thisBalance = Token(incentive.rewardToken).balanceOf(address(this));
         uint256 stakingContractBalance = Token(incentive.rewardToken).balanceOf(address(stakingContract));
 
+        uint32 newStartTime = startTime == 0 ? incentive.lastRewardTime : (startTime > uint32(block.timestamp) ? startTime : uint32(block.timestamp));
+        uint32 newEndTime = endTime == 0 ? incentive.endTime : (endTime > uint32(block.timestamp) ? endTime : uint32(block.timestamp));
+        if (newStartTime > newEndTime) {
+            vm.expectRevert(invalidTimeFrame);
+            stakingContract.updateIncentive(incentiveId, changeAmount, startTime, endTime);
+            return;
+        }
+
+        if (changeAmount == type(int112).min) {
+            vm.expectRevert(overflow);
+            stakingContract.updateIncentive(incentiveId, changeAmount, startTime, endTime);
+            return;
+        }
+
+        if (changeAmount > 0 && uint112(changeAmount) + uint256(incentive.rewardRemaining) > type(uint112).max) {
+            vm.expectRevert(overflow);
+            stakingContract.updateIncentive(incentiveId, changeAmount, startTime, endTime);
+            return;
+        }
+
         stakingContract.updateIncentive(incentiveId, changeAmount, startTime, endTime);
 
         if (changeAmount < 0 && uint112(-changeAmount) > incentive.rewardRemaining) {
             changeAmount = -int112(incentive.rewardRemaining);
         }
+
         StakingContractMainnet.Incentive memory updatedIncentive = _getIncentive(incentiveId);
         assertEq(updatedIncentive.lastRewardTime, startTime != 0 ? (startTime < block.timestamp ? block.timestamp : startTime) : incentive.lastRewardTime);
         assertEq(updatedIncentive.endTime, endTime != 0 ? (endTime < block.timestamp ? block.timestamp : endTime) : incentive.endTime);
@@ -126,6 +158,20 @@ contract TestSetup is DSTest {
         uint256 userBalanceBefore = Token(token).balanceOf(from);
         uint256 stakingContractBalanceBefore = Token(token).balanceOf(address(stakingContract));
         uint256 userLiquidityBefore = _getUsersLiquidityStaked(from, token);
+
+        if (amount > userBalanceBefore) {
+            vm.expectRevert(overflow);
+            vm.prank(from);
+            stakingContract.stakeToken(token, amount);
+            return;
+        }
+
+        if (amount > type(uint112).max - userLiquidityBefore) {
+            vm.expectRevert(overflow);
+            vm.prank(from);
+            stakingContract.stakeToken(token, amount);
+            return;
+        }
 
         vm.prank(from);
         stakingContract.stakeToken(token, amount);
@@ -152,6 +198,13 @@ contract TestSetup is DSTest {
         assertEq(incentive.liquidityStaked + liquidity, incentiveAfter.liquidityStaked);
         assertEq(uint24(subscribedIncentives), uint24(incentiveId));
         assertEq(stakingContract.rewardPerLiquidityLast(from, incentiveId), incentiveAfter.rewardPerLiquidity);
+    }
+
+    function _claimReward(uint256 incentiveId, address from) public {
+        StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
+        vm.prank(from);
+        stakingContract.claimRewards([incentiveId]);
+        StakingContractMainnet.Incentive memory updatedIncentive = _getIncentive(incentiveId);
     }
 
     function _getUsersLiquidityStaked(address user, address token) public returns (uint112) {
