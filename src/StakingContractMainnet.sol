@@ -46,6 +46,13 @@ contract StakingContractMainnet {
         uint144 subscribedIncentiveIds; // Six packed uint24 values.
     }
 
+    error InvalidTimeFrame();
+    error IncentiveOverflow();
+    error AlreadySubscribed();
+    error AlreadyUnsubscribed();
+    error NotSubscribed();
+    error OnlyCreator();
+
     function createIncentive(
         address token,
         address rewardToken,
@@ -56,11 +63,11 @@ contract StakingContractMainnet {
 
         if (startTime < block.timestamp) startTime = uint32(block.timestamp);
 
-        require(startTime < endTime);
+        if (startTime >= endTime) revert InvalidTimeFrame();
 
         unchecked {
             incentiveId = ++incentiveCount;
-            require(incentiveId <= type(uint24).max);
+            if (incentiveId > type(uint24).max) revert IncentiveOverflow();
         }
 
         ERC20(rewardToken).safeTransferFrom(msg.sender, address(this), rewardAmount); // check token existance ?
@@ -87,7 +94,7 @@ contract StakingContractMainnet {
 
         Incentive storage incentive = incentives[incentiveId];
 
-        require(msg.sender == incentive.creator);
+        if (msg.sender != incentive.creator) revert OnlyCreator();
 
         _accrueRewards(incentive);
 
@@ -101,7 +108,7 @@ contract StakingContractMainnet {
             incentive.endTime = newEndTime;
         }
 
-        require(incentive.lastRewardTime <= incentive.endTime);
+        if (incentive.lastRewardTime > incentive.endTime) revert InvalidTimeFrame();
 
         if (changeAmount > 0) {
             
@@ -135,7 +142,7 @@ contract StakingContractMainnet {
 
             _accrueRewards(incentive);
 
-            _claimReward(incentive, incentiveId, msg.sender, userStake.liquidity);
+            _claimReward(incentive, incentiveId, userStake.liquidity);
 
             incentive.liquidityStaked += amount;
 
@@ -174,7 +181,7 @@ contract StakingContractMainnet {
 
             _accrueRewards(incentive);
 
-            _claimReward(incentive, incentiveId, msg.sender, userStake.liquidity);
+            _claimReward(incentive, incentiveId, userStake.liquidity);
 
             unchecked { incentive.liquidityStaked -= amount; }
 
@@ -186,7 +193,7 @@ contract StakingContractMainnet {
 
     function subscribeToIncentive(uint256 incentiveId) public {
 
-        require(rewardPerLiquidityLast[msg.sender][incentiveId] == 0, "Already subscribed");
+        if (rewardPerLiquidityLast[msg.sender][incentiveId] != 0) revert AlreadySubscribed();
 
         Incentive storage incentive = incentives[incentiveId];
 
@@ -199,7 +206,7 @@ contract StakingContractMainnet {
         userStake.subscribedIncentiveIds = userStake.subscribedIncentiveIds.pushUint24Value(uint24(incentiveId));
 
         incentive.liquidityStaked += userStake.liquidity;
-        console.log(userStakes[msg.sender][incentive.token].subscribedIncentiveIds);
+
     }
 
     /// @param incentiveIndex ∈ [0,5]
@@ -208,15 +215,15 @@ contract StakingContractMainnet {
         UserStake storage userStake = userStakes[msg.sender][token];
 
         uint256 incentiveId = userStake.subscribedIncentiveIds.getUint24ValueAt(incentiveIndex);
-        
-        require(rewardPerLiquidityLast[msg.sender][incentiveId] != 0, "Already unsubscribed");
+
+        if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert AlreadyUnsubscribed();
         
         Incentive storage incentive = incentives[incentiveId];
 
         _accrueRewards(incentive);
 
         /// In case there is an issue with transfering rewards we can ignore them.
-        if (!ignoreRewards) _claimReward(incentive, incentiveId, msg.sender, userStake.liquidity);
+        if (!ignoreRewards) _claimReward(incentive, incentiveId, userStake.liquidity);
 
         rewardPerLiquidityLast[msg.sender][incentiveId] = 0;
 
@@ -236,7 +243,7 @@ contract StakingContractMainnet {
 
             _accrueRewards(incentive);
 
-            _claimReward(incentive, incentiveIds[i], msg.sender, userStakes[msg.sender][incentive.token].liquidity);
+            _claimReward(incentive, incentiveIds[i], userStakes[msg.sender][incentive.token].liquidity);
 
         }
 
@@ -260,19 +267,18 @@ contract StakingContractMainnet {
         }
     }
 
-    // hardcode msg.sender
-    function _claimReward(Incentive storage incentive, uint256 incentiveId, address user, uint112 usersLiquidity) internal returns (uint256 reward) {
+    function _claimReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal returns (uint256 reward) {
 
-        require(rewardPerLiquidityLast[user][incentiveId] != 0, "not subscribed");
+        if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert NotSubscribed();
 
         unchecked {
-            uint256 rewardPerLiquidity = incentive.rewardPerLiquidity - rewardPerLiquidityLast[user][incentiveId];
-            reward = rewardPerLiquidity * usersLiquidity / type(uint128).max; // use safe mulDiv that handles phantom overflow ?
+            uint256 rewardPerLiquidity = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId];
+            reward = rewardPerLiquidity * usersLiquidity / type(uint128).max; // use safe mulDiv that handles phantom overflow
         }
 
-        rewardPerLiquidityLast[user][incentiveId] = incentive.rewardPerLiquidity;
+        rewardPerLiquidityLast[msg.sender][incentiveId] = incentive.rewardPerLiquidity;
 
-        ERC20(incentive.rewardToken).safeTransfer(user, reward);
+        ERC20(incentive.rewardToken).safeTransfer(msg.sender, reward);
 
     }
 
