@@ -46,12 +46,43 @@ contract CreateIncentiveTest is TestSetup {
         _subscribeToIncentive(ongoingIncentive, johnDoe);
     }
 
+    function testAccrue(uint112 amount) public {
+        _stake(address(tokenA), amount, johnDoe);
+        _accrueRewards(pastIncentive);
+        _accrueRewards(ongoingIncentive);
+        _accrueRewards(futureIncentive);
+        _subscribeToIncentive(pastIncentive, johnDoe);
+        _subscribeToIncentive(futureIncentive, johnDoe);
+        _subscribeToIncentive(ongoingIncentive, johnDoe);
+        _accrueRewards(pastIncentive);
+        _accrueRewards(ongoingIncentive);
+        _accrueRewards(futureIncentive);
+        uint256 step = testIncentiveDuration / 2;
+        vm.warp(block.timestamp + step);
+        _accrueRewards(pastIncentive);
+        _accrueRewards(ongoingIncentive);
+        _accrueRewards(futureIncentive);
+        vm.warp(block.timestamp + step);
+        _accrueRewards(ongoingIncentive);
+        _accrueRewards(futureIncentive);
+        vm.warp(block.timestamp + step);
+        _accrueRewards(futureIncentive);
+        vm.warp(block.timestamp + step);
+        _accrueRewards(futureIncentive);
+        vm.warp(block.timestamp + step);
+        _accrueRewards(futureIncentive);
+    }
+
     function testClaimRewards() public {
         _claimReward(pastIncentive, johnDoe);
         _claimReward(futureIncentive, johnDoe);
         _claimReward(ongoingIncentive, johnDoe);
     }
 
+    function testFailStakeAndSubscribe(uint112 amount) public {
+        _stake(address(tokenA), amount, johnDoe);
+        _subscribeToIncentive(0, johnDoe);
+    }
     // todo test stakeInvalidToken
     // todo test subscribe twice
     // todo test subscribe to invalidIncentive
