@@ -249,6 +249,10 @@ contract StakingContractMainnet {
 
     }
 
+    function accrueRewards(uint256 incentiveId) external {
+        _accrueRewards(incentives[incentiveId]);
+    }
+
     function _accrueRewards(Incentive storage incentive) internal {
         unchecked {
             if (
@@ -259,7 +263,7 @@ contract StakingContractMainnet {
                 uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
                 uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
                 uint256 passedTime = maxTime - incentive.lastRewardTime;
-                uint256 reward = incentive.rewardRemaining * passedTime / totalTime;
+                uint256 reward = uint256(incentive.rewardRemaining) * passedTime / totalTime;
                 incentive.rewardPerLiquidity += reward * type(uint112).max / incentive.liquidityStaked;
                 incentive.rewardRemaining -= uint112(reward);
                 incentive.lastRewardTime = uint32(maxTime);
