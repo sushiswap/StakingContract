@@ -26,6 +26,7 @@ contract TestSetup is DSTest {
     uint112 testIncentiveAmount = 1e21;
 
     bytes4 invalidTimeFrame = bytes4(keccak256("InvalidTimeFrame()"));
+    bytes4 notSubscribed = bytes4(keccak256("NotSubscribed()"));
     bytes4 panic = 0x4e487b71;
     bytes overflow = abi.encodePacked(panic, bytes32(uint256(0x11)));
 
@@ -58,10 +59,12 @@ contract TestSetup is DSTest {
         tokenA.approve(address(stakingContract), MAX_UINT256);
 
         uint112 amount = testIncentiveAmount;
+        uint256 currentTime = block.timestamp;
         uint256 duration = testIncentiveDuration;
 
+        vm.warp(currentTime - duration);
         pastIncentive = _createIncentive(address(tokenA), address(tokenB), amount, uint32(block.timestamp), uint32(block.timestamp + duration));
-        vm.warp(block.timestamp + duration + 1);
+        vm.warp(currentTime);
         ongoingIncentive = _createIncentive(address(tokenA), address(tokenB), amount, uint32(block.timestamp), uint32(block.timestamp + duration));
         futureIncentive = _createIncentive(address(tokenA), address(tokenB), amount, uint32(block.timestamp + duration), uint32(block.timestamp + duration * 2));
     }
@@ -200,6 +203,7 @@ contract TestSetup is DSTest {
         assertEq(incentive.liquidityStaked + liquidity, incentiveAfter.liquidityStaked);
         assertEq(uint24(subscribedIncentives), uint24(incentiveId));
         assertEq(stakingContract.rewardPerLiquidityLast(from, incentiveId), incentiveAfter.rewardPerLiquidity);
+        assertEq(incentiveAfter.lastRewardTime, block.timestamp > incentiveAfter.endTime ? incentiveAfter.endTime : block.timestamp);
     }
 
     function _accrueRewards(uint256 incentiveId) public {
@@ -207,16 +211,16 @@ contract TestSetup is DSTest {
         uint256 rewardPerLiquidity;
         uint256 rewardRemaining;
         uint256 lastRewardTime;
+        uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
         if (
             incentive.liquidityStaked > 0 &&
-            incentive.lastRewardTime < block.timestamp &&
-            incentive.lastRewardTime < incentive.endTime
+            incentive.lastRewardTime < maxTime
         ) {
             (rewardPerLiquidity, rewardRemaining, lastRewardTime) = _calculateAccureChange(incentiveId); 
         } else {
             rewardPerLiquidity = incentive.rewardPerLiquidity;
-            lastRewardTime = incentive.lastRewardTime;
             rewardRemaining = incentive.rewardRemaining;
+            lastRewardTime = maxTime;
         }
         stakingContract.accrueRewards(incentiveId);
         StakingContractMainnet.Incentive memory updatedIncentive = _getIncentive(incentiveId);
@@ -228,6 +232,9 @@ contract TestSetup is DSTest {
     function _calculateAccureChange(uint256 incentiveId) public returns (uint256 rewardPerLiquidity, uint256 rewardRemaining, uint256 lastRewardTime) {
         StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
         uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
+        if (totalTime == 0 || incentive.liquidityStaked == 0 || block.timestamp < incentive.lastRewardTime) {
+            return (incentive.rewardPerLiquidity, incentive.rewardRemaining, incentive.lastRewardTime);
+        }
         uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
         uint256 passedTime = maxTime - incentive.lastRewardTime;
         uint256 reward = uint256(passedTime) * incentive.rewardRemaining / totalTime;
@@ -240,29 +247,36 @@ contract TestSetup is DSTest {
 
     function _claimReward(uint256 incentiveId, address from) public {
         StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
-
-        /* uint256 balnceBefore = Token(incentive.rewardToken).balanceOf(from);
-        uint256 usersLiquidity = _getUsersLiquidityStaked(from, incentive.token);
-        uint256 rplLast = stakingContract.rewardPerLiquidityLast(from, incentiveId);
-        uint256 rplCurrent = incentive.rewardPerLiquidity + incentive.rewardRemainin;
-
-        if (rplCurrent == 0) {
-            vm.expectRevert("aaaaaaa");
-            vm.prank(from);
-            uint256[] memory incentiveIds = new uint256[](1);
-            incentiveIds[0] = incentiveId;
-            stakingContract.claimRewards(incentiveIds);
-        }
-
-
-
-        vm.prank(from);
+        uint256 oldBalance = Token(incentive.rewardToken).balanceOf(from);
+        (uint256 rewardPerLiquidityLast, uint256 rewardPerLiquidity, uint256 expectedReward) = _calculateReward(incentiveId, from);
         uint256[] memory incentiveIds = new uint256[](1);
         incentiveIds[0] = incentiveId;
-        stakingContract.claimRewards(incentiveIds);
+        if (rewardPerLiquidityLast == 0) {
+            vm.prank(from);
+            vm.expectRevert(notSubscribed);
+            stakingContract.claimRewards(incentiveIds);
+            return;
+        }
+        vm.prank(from);
+        uint256[] memory rewards = stakingContract.claimRewards(incentiveIds);
+        uint256 reward = rewards[0];
+        assertEq(reward, expectedReward);
+        uint256 newBalance = Token(incentive.rewardToken).balanceOf(from);
+        assertEq(newBalance - oldBalance, reward);
 
-        uint256 balnceAfter = Token(incentive.rewardToken).balanceOf(from);
-        StakingContractMainnet.Incentive memory updatedIncentive = _getIncentive(incentiveId); */
+        StakingContractMainnet.Incentive memory updatedIncentive = _getIncentive(incentiveId);
+        assertEq(updatedIncentive.rewardPerLiquidity, rewardPerLiquidity);
+        assertEq(stakingContract.rewardPerLiquidityLast(from, incentiveId), rewardPerLiquidity);
+    }
+
+    function _calculateReward(uint256 incentiveId, address from) internal returns (uint256 rplLast, uint256 newRewardPerLiquidity, uint256 reward) {
+        StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
+        (newRewardPerLiquidity,,) = _calculateAccureChange(incentiveId); 
+        uint256 usersLiquidity = _getUsersLiquidityStaked(from, incentive.token);
+        rplLast = stakingContract.rewardPerLiquidityLast(from, incentiveId);
+        if (rplLast != 0) {
+            reward = (newRewardPerLiquidity - rplLast) * usersLiquidity / type(uint112).max;
+        }
     }
 
     function _getUsersLiquidityStaked(address user, address token) public returns (uint112) {

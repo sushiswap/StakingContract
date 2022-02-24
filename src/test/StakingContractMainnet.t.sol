@@ -75,7 +75,20 @@ contract CreateIncentiveTest is TestSetup {
 
     function testClaimRewards() public {
         _claimReward(pastIncentive, johnDoe);
+        _claimReward(pastIncentive, johnDoe);
         _claimReward(futureIncentive, johnDoe);
+        _claimReward(futureIncentive, johnDoe);
+        _claimReward(ongoingIncentive, johnDoe);
+        _claimReward(ongoingIncentive, johnDoe);
+        _stake(address(tokenA), 1, johnDoe);
+        _subscribeToIncentive(pastIncentive, johnDoe);
+        _subscribeToIncentive(ongoingIncentive, johnDoe);
+        _subscribeToIncentive(futureIncentive, johnDoe);
+        _claimReward(pastIncentive, johnDoe);
+        _claimReward(pastIncentive, johnDoe);
+        _claimReward(futureIncentive, johnDoe);
+        _claimReward(futureIncentive, johnDoe);
+        _claimReward(ongoingIncentive, johnDoe);
         _claimReward(ongoingIncentive, johnDoe);
     }
 

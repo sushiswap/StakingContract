@@ -25,5 +25,5 @@ gas_limit = 9223372036854775807                               # the gas limit in
 gas_price = 0                                                 # the gas price (in wei) in tests
 block_base_fee_per_gas = 0                                    # the base fee (in wei) in tests
 block_coinbase = '0x0000000000000000000000000000000000000000' # the address of `block.coinbase` in tests
-block_timestamp = 1644611032                                  # the value of `block.timestamp` in tests
+block_timestamp = 1644611000                                  # the value of `block.timestamp` in tests
 block_difficulty = 0                                          # the value of `block.difficulty` in tests

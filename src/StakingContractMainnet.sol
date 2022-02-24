@@ -233,9 +233,39 @@ contract StakingContractMainnet {
 
     }
 
-    function claimRewards(uint256[] calldata incentiveIds) external {
+    function accrueRewards(uint256 incentiveId) external {
+        _accrueRewards(incentives[incentiveId]);
+    }
+
+    function _accrueRewards(Incentive storage incentive) internal {
+        unchecked {
+
+            uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
+
+            if (
+                incentive.liquidityStaked > 0 &&
+                incentive.lastRewardTime < maxTime
+            ) {
+                
+                uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
+                uint256 passedTime = maxTime - incentive.lastRewardTime;
+                uint256 reward = uint256(incentive.rewardRemaining) * passedTime / totalTime;
+                incentive.rewardPerLiquidity += reward * type(uint112).max / incentive.liquidityStaked;
+                incentive.rewardRemaining -= uint112(reward);
+                incentive.lastRewardTime = uint32(maxTime);
+
+            } else if (incentive.liquidityStaked == 0) {
+                
+                incentive.lastRewardTime = uint32(maxTime);
+
+            }
+        }
+    }
+
+    function claimRewards(uint256[] calldata incentiveIds) external returns (uint256[] memory rewards) {
 
         uint256 n = incentiveIds.length;
+        rewards = new uint256[](n);
 
         for(uint256 i = 0; i < n; i = _increment(i)) {
 
@@ -243,32 +273,10 @@ contract StakingContractMainnet {
 
             _accrueRewards(incentive);
 
-            _claimReward(incentive, incentiveIds[i], userStakes[msg.sender][incentive.token].liquidity);
+            rewards[i] = _claimReward(incentive, incentiveIds[i], userStakes[msg.sender][incentive.token].liquidity);
 
         }
 
-    }
-
-    function accrueRewards(uint256 incentiveId) external {
-        _accrueRewards(incentives[incentiveId]);
-    }
-
-    function _accrueRewards(Incentive storage incentive) internal {
-        unchecked {
-            if (
-                incentive.liquidityStaked > 0 &&
-                incentive.lastRewardTime < block.timestamp &&
-                incentive.lastRewardTime < incentive.endTime
-            ) {
-                uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
-                uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
-                uint256 passedTime = maxTime - incentive.lastRewardTime;
-                uint256 reward = uint256(incentive.rewardRemaining) * passedTime / totalTime;
-                incentive.rewardPerLiquidity += reward * type(uint112).max / incentive.liquidityStaked;
-                incentive.rewardRemaining -= uint112(reward);
-                incentive.lastRewardTime = uint32(maxTime);
-            }
-        }
     }
 
     function _claimReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal returns (uint256 reward) {
