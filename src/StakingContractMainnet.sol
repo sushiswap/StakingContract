@@ -53,6 +53,13 @@ contract StakingContractMainnet {
     error NotSubscribed();
     error OnlyCreator();
 
+    event IncentiveCreated(address indexed token, address indexed rewardToken, address indexed creator, uint256 id, uint256 amount, uint256 startTime, uint256 endTime);
+    event IncentiveUpdated(uint256 indexed id, int256 changeAmount, uint256 newStartTime, uint256 newEndTime);
+    event Stake(address indexed token, address indexed user, uint256 amount);
+    event Unstake(address indexed token, address indexed user, uint256 amount);
+    event Subscribe(uint256 indexed id, address indexed user);
+    event Unsubscribe(uint256 indexed id, address indexed user);
+
     function createIncentive(
         address token,
         address rewardToken,
@@ -82,6 +89,8 @@ contract StakingContractMainnet {
             liquidityStaked: 0,
             rewardPerLiquidity: 1
         });
+
+        emit IncentiveCreated(token, rewardToken, msg.sender, incentiveId, rewardAmount, startTime, endTime);
 
     }
 
@@ -124,6 +133,8 @@ contract StakingContractMainnet {
 
         }
 
+        emit IncentiveUpdated(incentiveId, changeAmount, incentive.lastRewardTime, incentive.endTime);
+
     }
 
     function stakeToken(address token, uint112 amount) public {
@@ -149,6 +160,8 @@ contract StakingContractMainnet {
         }
 
         userStake.liquidity += amount;
+
+        emit Stake(token, msg.sender, amount);
 
     }
 
@@ -189,6 +202,8 @@ contract StakingContractMainnet {
 
         ERC20(token).safeTransfer(msg.sender, amount);
 
+        emit Unstake(token, msg.sender, amount);
+
     }
 
     function subscribeToIncentive(uint256 incentiveId) public {
@@ -206,6 +221,8 @@ contract StakingContractMainnet {
         userStake.subscribedIncentiveIds = userStake.subscribedIncentiveIds.pushUint24Value(uint24(incentiveId));
 
         incentive.liquidityStaked += userStake.liquidity;
+
+        emit Subscribe(incentiveId, msg.sender);
 
     }
 
@@ -230,6 +247,8 @@ contract StakingContractMainnet {
         unchecked { incentive.liquidityStaked -= userStake.liquidity; }
 
         userStake.subscribedIncentiveIds = userStake.subscribedIncentiveIds.removeUint24ValueAt(incentiveIndex);
+
+        emit Unsubscribe(incentiveId, msg.sender);
 
     }
 
@@ -265,6 +284,7 @@ contract StakingContractMainnet {
     function claimRewards(uint256[] calldata incentiveIds) external returns (uint256[] memory rewards) {
 
         uint256 n = incentiveIds.length;
+
         rewards = new uint256[](n);
 
         for(uint256 i = 0; i < n; i = _increment(i)) {
