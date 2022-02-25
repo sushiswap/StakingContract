@@ -305,7 +305,7 @@ contract StakingContractMainnet {
 
         unchecked {
             uint256 rewardPerLiquidity = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId];
-            reward = rewardPerLiquidity * usersLiquidity / type(uint128).max; // use safe mulDiv that handles phantom overflow
+            reward = rewardPerLiquidity * usersLiquidity / type(uint112).max; // use safe mulDiv that handles phantom overflow
         }
 
         rewardPerLiquidityLast[msg.sender][incentiveId] = incentive.rewardPerLiquidity;

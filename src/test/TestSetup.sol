@@ -245,7 +245,7 @@ contract TestSetup is DSTest {
         lastRewardTime = maxTime;
     }
 
-    function _claimReward(uint256 incentiveId, address from) public {
+    function _claimReward(uint256 incentiveId, address from) public returns(uint256 reward) {
         StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
         uint256 oldBalance = Token(incentive.rewardToken).balanceOf(from);
         (uint256 rewardPerLiquidityLast, uint256 rewardPerLiquidity, uint256 expectedReward) = _calculateReward(incentiveId, from);
@@ -255,15 +255,15 @@ contract TestSetup is DSTest {
             vm.prank(from);
             vm.expectRevert(notSubscribed);
             stakingContract.claimRewards(incentiveIds);
-            return;
+            return 0;
         }
         vm.prank(from);
         uint256[] memory rewards = stakingContract.claimRewards(incentiveIds);
-        uint256 reward = rewards[0];
+        reward = rewards[0];
+        console.log(reward);
         assertEq(reward, expectedReward);
         uint256 newBalance = Token(incentive.rewardToken).balanceOf(from);
         assertEq(newBalance - oldBalance, reward);
-
         StakingContractMainnet.Incentive memory updatedIncentive = _getIncentive(incentiveId);
         assertEq(updatedIncentive.rewardPerLiquidity, rewardPerLiquidity);
         assertEq(stakingContract.rewardPerLiquidityLast(from, incentiveId), rewardPerLiquidity);
@@ -310,5 +310,10 @@ contract TestSetup is DSTest {
             rewardRemaining,
             liquidityStaked
         );
+    }
+
+    function assertEqInexact(uint256 value, uint256 shouldBe, uint256 err) public {
+        assertTrue(value <= shouldBe + err);
+        assertTrue(value >= shouldBe - err);
     }
 }

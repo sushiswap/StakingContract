@@ -73,7 +73,7 @@ contract CreateIncentiveTest is TestSetup {
         _accrueRewards(futureIncentive);
     }
 
-    function testClaimRewards() public {
+    function testClaimRewards0() public {
         _claimReward(pastIncentive, johnDoe);
         _claimReward(pastIncentive, johnDoe);
         _claimReward(futureIncentive, johnDoe);
@@ -92,10 +92,24 @@ contract CreateIncentiveTest is TestSetup {
         _claimReward(ongoingIncentive, johnDoe);
     }
 
+    function testClaimRewards1(uint112 amount) public {
+        if (amount == 0) return;
+        _stake(address(tokenA), amount, johnDoe);
+        StakingContractMainnet.Incentive memory incentive = _getIncentive(ongoingIncentive);
+        uint256 totalReward = incentive.rewardRemaining;
+        _subscribeToIncentive(ongoingIncentive, johnDoe);
+        vm.warp(incentive.endTime);
+        uint256 reward = _claimReward(ongoingIncentive, johnDoe);
+        assertEqInexact(reward, totalReward, 1);
+        incentive = _getIncentive(ongoingIncentive);
+        assertEq(incentive.rewardRemaining, 0);
+    }
+
     function testFailStakeAndSubscribe(uint112 amount) public {
         _stake(address(tokenA), amount, johnDoe);
         _subscribeToIncentive(0, johnDoe);
     }
+
     // todo test stakeInvalidToken
     // todo test subscribe twice
     // todo test subscribe to invalidIncentive
