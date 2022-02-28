@@ -270,7 +270,6 @@ contract TestSetup is DSTest {
         vm.prank(from);
         uint256[] memory rewards = stakingContract.claimRewards(incentiveIds);
         reward = rewards[0];
-        console.log(reward);
         assertEq(reward, expectedReward);
         uint256 newBalance = Token(incentive.rewardToken).balanceOf(from);
         assertEq(newBalance - oldBalance, reward);

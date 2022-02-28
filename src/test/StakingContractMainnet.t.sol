@@ -105,6 +105,40 @@ contract CreateIncentiveTest is TestSetup {
         assertEq(incentive.rewardRemaining, 0);
     }
 
+    function testClaimRewards2(uint96 amount0, uint96 amount1) public {
+        if (amount0 == 0 || amount1 == 0) return;
+        uint256 maxRatio = 1000000;
+        if (amount0 / amount1 > 1000000) return; // to avoid rounding innacuracies for easier testing
+        if (amount1 / amount0 > 1000000) return;
+        
+        StakingContractMainnet.Incentive memory incentive = _getIncentive(ongoingIncentive);
+        uint256 totalReward = incentive.rewardRemaining;
+        _stake(address(tokenA), amount0, johnDoe);
+        _stake(address(tokenA), amount1, janeDoe);
+        _subscribeToIncentive(ongoingIncentive, johnDoe);
+
+        vm.warp((incentive.lastRewardTime + incentive.endTime) / 2);
+        uint256 soloReward = _claimReward(ongoingIncentive, johnDoe);
+
+        _subscribeToIncentive(ongoingIncentive, janeDoe);
+        vm.warp(incentive.endTime);
+
+        uint256 reward0 = _claimReward(ongoingIncentive, johnDoe);
+        uint256 reward1 = _claimReward(ongoingIncentive, janeDoe);
+
+        incentive = _getIncentive(ongoingIncentive);
+        uint256 ratio;
+        if (amount0 / amount1 > 0) {
+            ratio = maxRatio * amount0 / amount1;
+            assertEqInexact(maxRatio * reward0 / reward1, ratio, 10);
+        }
+        if (amount1 / amount0 > 0) {
+            ratio = maxRatio * amount1 / amount0;
+            assertEqInexact(maxRatio * reward1 / reward0, ratio, 10);
+        }
+        assertEqInexact(reward0 + reward1 + soloReward, totalReward, 10);
+    }
+
     function testFailStakeAndSubscribe(uint112 amount) public {
         _stake(address(tokenA), amount, johnDoe);
         _subscribeToIncentive(0, johnDoe);
