@@ -329,8 +329,14 @@ contract StakingContractMainnet {
     function batch(bytes[] calldata datas) external {
         uint256 n = datas.length;
         for (uint256 i = 0; i < n; i = _increment(i)) {
-            (bool success,) = address(this).delegatecall(datas[i]);
-            require(success); // todo, parse revert msg
+            (bool success, bytes memory result) = address(this).delegatecall(datas[i]);
+            if (!success) {
+                if (result.length < 68) revert();
+                assembly {
+                    result := add(result, 0x04)
+                }
+                revert(abi.decode(result, (string)));
+            }
         }
     }
 

@@ -27,6 +27,7 @@ contract TestSetup is DSTest {
 
     bytes4 invalidTimeFrame = bytes4(keccak256("InvalidTimeFrame()"));
     bytes4 notSubscribed = bytes4(keccak256("NotSubscribed()"));
+    bytes4 alreadySubscribed = bytes4(keccak256("AlreadySubscribed()"));
     bytes4 noToken = bytes4(keccak256("NoToken()"));
     bytes4 panic = 0x4e487b71;
     bytes overflow = abi.encodePacked(panic, bytes32(uint256(0x11)));
@@ -194,7 +195,15 @@ contract TestSetup is DSTest {
     function _subscribeToIncentive(uint256 incentiveId, address from) public {
         StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
         uint112 liquidity = _getUsersLiquidityStaked(from, incentive.token);
-        
+
+        (uint256 rpl) = stakingContract.rewardPerLiquidityLast(from, incentiveId);
+
+        if (rpl != 0) {
+            vm.prank(from);
+            vm.expectRevert(alreadySubscribed);
+            return stakingContract.subscribeToIncentive(incentiveId);
+        }
+
         vm.prank(from);
         stakingContract.subscribeToIncentive(incentiveId);
         
