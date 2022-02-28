@@ -22,7 +22,6 @@ contract CreateIncentiveTest is TestSetup {
         uint32 endTime1
     ) public {
         _updateIncentive(ongoingIncentive, changeAmount0, startTime0, endTime0);
-        _updateIncentive(ongoingIncentive, changeAmount0, startTime0, endTime0);
         _updateIncentive(ongoingIncentive, changeAmount1, startTime1, endTime1);
     }
 

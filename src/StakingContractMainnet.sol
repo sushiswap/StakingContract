@@ -117,7 +117,7 @@ contract StakingContractMainnet {
             incentive.endTime = newEndTime;
         }
 
-        if (incentive.lastRewardTime > incentive.endTime) revert InvalidTimeFrame();
+        if (incentive.lastRewardTime >= incentive.endTime) revert InvalidTimeFrame();
 
         if (changeAmount > 0) {
             

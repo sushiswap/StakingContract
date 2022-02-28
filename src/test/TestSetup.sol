@@ -124,7 +124,7 @@ contract TestSetup is DSTest {
 
         uint32 newStartTime = startTime == 0 ? incentive.lastRewardTime : (startTime > uint32(block.timestamp) ? startTime : uint32(block.timestamp));
         uint32 newEndTime = endTime == 0 ? incentive.endTime : (endTime > uint32(block.timestamp) ? endTime : uint32(block.timestamp));
-        if (newStartTime > newEndTime) {
+        if (newStartTime >= newEndTime) {
             vm.expectRevert(invalidTimeFrame);
             stakingContract.updateIncentive(incentiveId, changeAmount, startTime, endTime);
             return;
