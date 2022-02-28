@@ -121,8 +121,8 @@ contract TestSetup is DSTest {
         StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
         uint256 thisBalance = Token(incentive.rewardToken).balanceOf(address(this));
         uint256 stakingContractBalance = Token(incentive.rewardToken).balanceOf(address(stakingContract));
-
-        uint32 newStartTime = startTime == 0 ? incentive.lastRewardTime : (startTime > uint32(block.timestamp) ? startTime : uint32(block.timestamp));
+        uint32 newLastRewardTime = uint32(block.timestamp) < incentive.endTime ? uint32(block.timestamp) : incentive.endTime;
+        uint32 newStartTime = startTime == 0 ? newLastRewardTime : (startTime > uint32(block.timestamp) ? startTime : uint32(block.timestamp));
         uint32 newEndTime = endTime == 0 ? incentive.endTime : (endTime > uint32(block.timestamp) ? endTime : uint32(block.timestamp));
         if (newStartTime >= newEndTime) {
             vm.expectRevert(invalidTimeFrame);
@@ -149,8 +149,8 @@ contract TestSetup is DSTest {
         }
 
         StakingContractMainnet.Incentive memory updatedIncentive = _getIncentive(incentiveId);
-        assertEq(updatedIncentive.lastRewardTime, startTime != 0 ? (startTime < block.timestamp ? block.timestamp : startTime) : incentive.lastRewardTime);
-        assertEq(updatedIncentive.endTime, endTime != 0 ? (endTime < block.timestamp ? block.timestamp : endTime) : incentive.endTime);
+        assertEq(updatedIncentive.lastRewardTime, newStartTime);
+        assertEq(updatedIncentive.endTime, newEndTime);
         assertEq(updatedIncentive.rewardRemaining, changeAmount < 0 ? incentive.rewardRemaining - uint112(-changeAmount) : incentive.rewardRemaining + uint112(changeAmount));
         assertEq(updatedIncentive.creator, incentive.creator);
         assertEq(updatedIncentive.token, incentive.token);
