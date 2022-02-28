@@ -27,6 +27,7 @@ contract TestSetup is DSTest {
 
     bytes4 invalidTimeFrame = bytes4(keccak256("InvalidTimeFrame()"));
     bytes4 notSubscribed = bytes4(keccak256("NotSubscribed()"));
+    bytes4 noToken = bytes4(keccak256("NoToken()"));
     bytes4 panic = 0x4e487b71;
     bytes overflow = abi.encodePacked(panic, bytes32(uint256(0x11)));
 
@@ -287,6 +288,15 @@ contract TestSetup is DSTest {
     function _getUsersSubscribedIncentives(address user, address token) public returns (uint144) {
         (, uint144 incentiveIds) = stakingContract.userStakes(user, token);
         return incentiveIds;
+    }
+
+    function _rewardRate(uint256 incentiveId) public returns (uint256) {
+        StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
+        if (incentive.endTime != incentive.lastRewardTime) {
+            return incentive.rewardRemaining * uint256(type(uint112).max) / (incentive.endTime - incentive.lastRewardTime);
+        } else {
+            return 0;
+        }
     }
 
     function _getIncentive(uint256 id) public returns (StakingContractMainnet.Incentive memory incentive) {

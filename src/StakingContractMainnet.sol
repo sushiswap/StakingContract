@@ -52,6 +52,7 @@ contract StakingContractMainnet {
     error AlreadyUnsubscribed();
     error NotSubscribed();
     error OnlyCreator();
+    error NoToken();
 
     event IncentiveCreated(address indexed token, address indexed rewardToken, address indexed creator, uint256 id, uint256 amount, uint256 startTime, uint256 endTime);
     event IncentiveUpdated(uint256 indexed id, int256 changeAmount, uint256 newStartTime, uint256 newEndTime);
@@ -77,8 +78,8 @@ contract StakingContractMainnet {
             if (incentiveId > type(uint24).max) revert IncentiveOverflow();
         }
 
-        ERC20(rewardToken).safeTransferFrom(msg.sender, address(this), rewardAmount); // check token existance ?
-        
+        _saferTransferFrom(rewardToken, rewardAmount);
+
         incentives[incentiveId] = Incentive({
             creator: msg.sender,
             token: token,
@@ -139,7 +140,7 @@ contract StakingContractMainnet {
 
     function stakeToken(address token, uint112 amount) public {
 
-        ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        _saferTransferFrom(token, amount);
 
         UserStake storage userStake = userStakes[msg.sender][token];
     
@@ -312,6 +313,11 @@ contract StakingContractMainnet {
 
         ERC20(incentive.rewardToken).safeTransfer(msg.sender, reward);
 
+    }
+
+    function _saferTransferFrom(address token, uint256 amount) internal {
+        if (token.code.length == 0) revert NoToken();
+        ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
     }
 
     function _increment(uint256 i) internal pure returns(uint256) {

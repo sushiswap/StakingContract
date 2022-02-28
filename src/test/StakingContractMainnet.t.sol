@@ -109,9 +109,26 @@ contract CreateIncentiveTest is TestSetup {
         _subscribeToIncentive(0, johnDoe);
     }
 
-    // todo test stakeInvalidToken
-    // todo test subscribe twice
-    // todo test subscribe to invalidIncentive
-    // todo check reward rate stays the same after accruing rewards
+    function testStakeInvalidToken() public {
+        vm.prank(johnDoe);
+        vm.expectRevert(noToken);
+        stakingContract.stakeToken(janeDoe, 1);
+    }
+
+    function testFailResubscribe() public {
+        _stake(address(tokenA), 1, johnDoe);
+        _subscribeToIncentive(ongoingIncentive, johnDoe);
+        _subscribeToIncentive(ongoingIncentive, johnDoe);
+    }
+
+    function testRewardRate() public {
+        _stake(address(tokenA), 1, johnDoe);
+        _subscribeToIncentive(ongoingIncentive, johnDoe);
+        uint256 oldRate = _rewardRate(ongoingIncentive);
+        vm.warp(block.timestamp + testIncentiveDuration / 2);
+        stakingContract.accrueRewards(ongoingIncentive);
+        uint256 newRate = _rewardRate(ongoingIncentive);
+        assertEq(oldRate, newRate);
+    }
 
 }
