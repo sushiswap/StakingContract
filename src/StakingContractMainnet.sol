@@ -166,13 +166,13 @@ contract StakingContractMainnet {
 
     }
 
-    function stakeAndSubscribeToIncentives(address token, uint112 amount, uint256[] memory incentives) external {
+    function stakeAndSubscribeToIncentives(address token, uint112 amount, uint256[] memory incentiveIds) external {
 
         stakeToken(token, amount);
 
-        uint256 n = incentives.length;
+        uint256 n = incentiveIds.length;
         for (uint256 i = 0; i < n; i = _increment(i)) {
-            subscribeToIncentive(incentives[i]);
+            subscribeToIncentive(incentiveIds[i]);
         }
 
     }
