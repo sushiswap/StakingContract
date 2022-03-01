@@ -75,13 +75,9 @@ contract StakingContractMainnet {
 
         if (startTime >= endTime) revert InvalidTimeFrame();
 
-        unchecked {
+        unchecked { incentiveId = ++incentiveCount; }
 
-            incentiveId = ++incentiveCount;
-
-            if (incentiveId > type(uint24).max) revert IncentiveOverflow();
-
-        }
+        if (incentiveId > type(uint24).max) revert IncentiveOverflow();
 
         _saferTransferFrom(rewardToken, rewardAmount);
 
@@ -282,7 +278,7 @@ contract StakingContractMainnet {
 
         _accrueRewards(incentive);
 
-        /// In case there is an issue with transfering rewards we can ignore them.
+        /// In case there is a token specific issue we can ignore rewards.
         if (!ignoreRewards) _claimReward(incentive, incentiveId, userStake.liquidity);
 
         rewardPerLiquidityLast[msg.sender][incentiveId] = 0;
@@ -320,14 +316,12 @@ contract StakingContractMainnet {
     }
 
     function _accrueRewards(Incentive storage incentive) internal {
+
         unchecked {
 
             uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
 
-            if (
-                incentive.liquidityStaked > 0 &&
-                incentive.lastRewardTime < maxTime
-            ) {
+            if (incentive.liquidityStaked > 0 && incentive.lastRewardTime < maxTime) {
                 
                 uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
 
@@ -347,7 +341,9 @@ contract StakingContractMainnet {
                 incentive.lastRewardTime = uint32(maxTime);
 
             }
+
         }
+
     }
 
     function _claimReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal returns (uint256 reward) {
@@ -360,13 +356,14 @@ contract StakingContractMainnet {
 
     }
 
+    // We offset the rewardPerLiquidityLast snapshot so that the current reward is included next time we call _claimReward.
     function _saveReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity, uint112 newLiquidity) internal returns (uint256 reward) {
 
         reward = _calculateReward(incentive, incentiveId, usersLiquidity);
 
-        uint256 rewardPerLiquidityDifference = reward * type(uint112).max / newLiquidity;
+        uint256 rewardPerLiquidityDelta = reward * type(uint112).max / newLiquidity;
 
-        rewardPerLiquidityLast[msg.sender][incentiveId] = incentive.rewardPerLiquidity - rewardPerLiquidityDifference;
+        rewardPerLiquidityLast[msg.sender][incentiveId] = incentive.rewardPerLiquidity - rewardPerLiquidityDelta;
 
     }
 
@@ -374,11 +371,11 @@ contract StakingContractMainnet {
 
         if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert NotSubscribed();
 
-        uint256 rewardPerLiquidity;
+        uint256 rewardPerLiquidityDelta;
 
-        unchecked {rewardPerLiquidity = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId];}
+        unchecked { rewardPerLiquidityDelta = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId]; }
 
-        reward = FullMath.mulDiv(rewardPerLiquidity, usersLiquidity, type(uint112).max);
+        reward = FullMath.mulDiv(rewardPerLiquidityDelta, usersLiquidity, type(uint112).max);
 
     }
 
