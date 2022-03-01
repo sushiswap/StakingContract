@@ -106,7 +106,7 @@ contract TestSetup is DSTest {
         assertEq(incentive.endTime, endTime);
         assertEq(incentive.rewardRemaining, amount);
         assertEq(incentive.liquidityStaked, 0);
-        assertEq(incentive.rewardPerLiquidity, 1);
+        assertEq(incentive.rewardPerLiquidity, type(uint256).max / 2);
         assertEq(count + 1, id);
         assertEq(stakingContract.incentiveCount(), id);
         assertEq(thisBalance - amount, Token(rewardToken).balanceOf(address(this)));
@@ -160,7 +160,7 @@ contract TestSetup is DSTest {
         assertEq(updatedIncentive.liquidityStaked, incentive.liquidityStaked);
     }
 
-    function _stake(address token, uint112 amount, address from) public {
+    function _stake(address token, uint112 amount, address from, bool transferRewards) public {
         // todo check if current incentives stakes got updates correctly
         uint256 userBalanceBefore = Token(token).balanceOf(from);
         uint256 stakingContractBalanceBefore = Token(token).balanceOf(address(stakingContract));
@@ -169,19 +169,19 @@ contract TestSetup is DSTest {
         if (amount > userBalanceBefore) {
             vm.expectRevert(overflow);
             vm.prank(from);
-            stakingContract.stakeToken(token, amount);
+            stakingContract.stakeToken(token, amount, transferRewards);
             return;
         }
 
         if (amount > type(uint112).max - userLiquidityBefore) {
             vm.expectRevert(overflow);
             vm.prank(from);
-            stakingContract.stakeToken(token, amount);
+            stakingContract.stakeToken(token, amount, transferRewards);
             return;
         }
 
         vm.prank(from);
-        stakingContract.stakeToken(token, amount);
+        stakingContract.stakeToken(token, amount, transferRewards);
 
         uint256 userBalanceAfter = Token(token).balanceOf(from);
         uint256 stakingContractBalanceAfter = Token(token).balanceOf(address(stakingContract));
@@ -190,6 +190,27 @@ contract TestSetup is DSTest {
         assertEq(userBalanceBefore - amount, userBalanceAfter);
         assertEq(userLiquidityBefore + amount, userLiquidityAfter);
         assertEq(stakingContractBalanceBefore + amount, stakingContractBalanceAfter);
+    }
+
+    function _unstake(address token, uint112 amount, address from, bool transferRewards) public {
+        uint256 userBalanceBefore = Token(token).balanceOf(from);
+        uint256 userLiquidityBefore = _getUsersLiquidityStaked(from, token);
+
+        if (amount > userLiquidityBefore) {
+            vm.expectRevert(overflow);
+            vm.prank(from);
+            stakingContract.unstakeToken(token, amount, transferRewards);
+            return;
+        }
+
+        vm.prank(from);
+        stakingContract.unstakeToken(token, amount, transferRewards);
+
+        uint256 userBalanceAfter = Token(token).balanceOf(from);
+        uint256 userLiquidityAfter = _getUsersLiquidityStaked(from, token);
+
+        assertEq(userBalanceBefore + amount, userBalanceAfter);
+        assertEq(userLiquidityBefore - amount, userLiquidityAfter);
     }
 
     function _subscribeToIncentive(uint256 incentiveId, address from) public {

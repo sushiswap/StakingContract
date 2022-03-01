@@ -26,10 +26,10 @@ contract CreateIncentiveTest is TestSetup {
     }
 
     function testStake(uint112 amount0, uint112 amount1) public {
-        _stake(address(tokenA), amount0, janeDoe);
-        _stake(address(tokenA), amount0, janeDoe);
-        _stake(address(tokenA), amount1, janeDoe);
-        _stake(address(tokenA), amount1, johnDoe);
+        _stake(address(tokenA), amount0, janeDoe, true);
+        _stake(address(tokenA), amount0, janeDoe, true);
+        _stake(address(tokenA), amount1, janeDoe, true);
+        _stake(address(tokenA), amount1, johnDoe, true);
     }
 
     function testSubscribe() public {
@@ -40,14 +40,14 @@ contract CreateIncentiveTest is TestSetup {
     }
 
     function testStakeAndSubscribe(uint112 amount) public {
-        _stake(address(tokenA), amount, johnDoe);
+        _stake(address(tokenA), amount, johnDoe, true);
         _subscribeToIncentive(pastIncentive, johnDoe);
         _subscribeToIncentive(futureIncentive, johnDoe);
         _subscribeToIncentive(ongoingIncentive, johnDoe);
     }
 
     function testAccrue(uint112 amount) public {
-        _stake(address(tokenA), amount, johnDoe);
+        _stake(address(tokenA), amount, johnDoe, true);
         _accrueRewards(pastIncentive);
         _accrueRewards(ongoingIncentive);
         _accrueRewards(futureIncentive);
@@ -80,7 +80,7 @@ contract CreateIncentiveTest is TestSetup {
         _claimReward(futureIncentive, johnDoe);
         _claimReward(ongoingIncentive, johnDoe);
         _claimReward(ongoingIncentive, johnDoe);
-        _stake(address(tokenA), 1, johnDoe);
+        _stake(address(tokenA), 1, johnDoe, true);
         _subscribeToIncentive(pastIncentive, johnDoe);
         _subscribeToIncentive(ongoingIncentive, johnDoe);
         _subscribeToIncentive(futureIncentive, johnDoe);
@@ -94,7 +94,7 @@ contract CreateIncentiveTest is TestSetup {
 
     function testClaimRewards1(uint112 amount) public {
         if (amount == 0) return;
-        _stake(address(tokenA), amount, johnDoe);
+        _stake(address(tokenA), amount, johnDoe, true);
         StakingContractMainnet.Incentive memory incentive = _getIncentive(ongoingIncentive);
         uint256 totalReward = incentive.rewardRemaining;
         _subscribeToIncentive(ongoingIncentive, johnDoe);
@@ -110,11 +110,11 @@ contract CreateIncentiveTest is TestSetup {
         uint256 maxRatio = 1000000;
         if (amount0 / amount1 > 1000000) return; // to avoid rounding innacuracies for easier testing
         if (amount1 / amount0 > 1000000) return;
-        
+
         StakingContractMainnet.Incentive memory incentive = _getIncentive(ongoingIncentive);
         uint256 totalReward = incentive.rewardRemaining;
-        _stake(address(tokenA), amount0, johnDoe);
-        _stake(address(tokenA), amount1, janeDoe);
+        _stake(address(tokenA), amount0, johnDoe, true);
+        _stake(address(tokenA), amount1, janeDoe, true);
         _subscribeToIncentive(ongoingIncentive, johnDoe);
 
         vm.warp((incentive.lastRewardTime + incentive.endTime) / 2);
@@ -139,19 +139,36 @@ contract CreateIncentiveTest is TestSetup {
         assertEqInexact(reward0 + reward1 + soloReward, totalReward, 10);
     }
 
+    function testUnstakeSaveRewards() public {
+        _stake(address(tokenA), 1, johnDoe, true);
+        _subscribeToIncentive(ongoingIncentive, johnDoe);
+        StakingContractMainnet.Incentive memory incentive = _getIncentive(ongoingIncentive);
+        uint256 rewardRemaining = incentive.rewardRemaining;
+        vm.warp((incentive.lastRewardTime + incentive.endTime) / 2);
+        _stake(address(tokenA), 1, johnDoe, false);
+        vm.warp((incentive.lastRewardTime + incentive.endTime) / 2 + 100);
+        _stake(address(tokenA), 1, johnDoe, false);
+        vm.warp(incentive.endTime);
+        _unstake(address(tokenA), 1, johnDoe, false);
+        uint256 reward = _claimReward(ongoingIncentive, johnDoe);
+        assertEq(reward, rewardRemaining);
+        reward = _claimReward(ongoingIncentive, johnDoe);
+        assertEq(reward, 0);
+    }
+
     function testFailStakeAndSubscribe(uint112 amount) public {
-        _stake(address(tokenA), amount, johnDoe);
+        _stake(address(tokenA), amount, johnDoe, true);
         _subscribeToIncentive(0, johnDoe);
     }
 
     function testStakeInvalidToken() public {
         vm.prank(johnDoe);
         vm.expectRevert(noToken);
-        stakingContract.stakeToken(janeDoe, 1);
+        stakingContract.stakeToken(janeDoe, 1, true);
     }
 
     function testRewardRate() public {
-        _stake(address(tokenA), 1, johnDoe);
+        _stake(address(tokenA), 1, johnDoe, true);
         _subscribeToIncentive(ongoingIncentive, johnDoe);
         uint256 oldRate = _rewardRate(ongoingIncentive);
         vm.warp(block.timestamp + testIncentiveDuration / 2);
@@ -162,7 +179,7 @@ contract CreateIncentiveTest is TestSetup {
 
     function testBatch() public {
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeCall(stakingContract.stakeToken, (address(tokenA), 1));
+        data[0] = abi.encodeCall(stakingContract.stakeToken, (address(tokenA), 1, true));
         data[1] = abi.encodeCall(stakingContract.subscribeToIncentive, (ongoingIncentive));
         vm.prank(johnDoe);
         stakingContract.batch(data);
@@ -173,7 +190,7 @@ contract CreateIncentiveTest is TestSetup {
 
     function testFailBatch() public {
         bytes[] memory data = new bytes[](3);
-        data[0] = abi.encodeCall(stakingContract.stakeToken, (address(tokenA), 1));
+        data[0] = abi.encodeCall(stakingContract.stakeToken, (address(tokenA), 1, true));
         data[1] = abi.encodeCall(stakingContract.subscribeToIncentive, (ongoingIncentive));
         data[2] = abi.encodeCall(stakingContract.subscribeToIncentive, (ongoingIncentive));
         vm.prank(johnDoe);

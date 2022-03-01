@@ -76,8 +76,11 @@ contract StakingContractMainnet {
         if (startTime >= endTime) revert InvalidTimeFrame();
 
         unchecked {
+
             incentiveId = ++incentiveCount;
+
             if (incentiveId > type(uint24).max) revert IncentiveOverflow();
+
         }
 
         _saferTransferFrom(rewardToken, rewardAmount);
@@ -90,7 +93,8 @@ contract StakingContractMainnet {
             endTime: endTime,
             rewardRemaining: rewardAmount,
             liquidityStaked: 0,
-            rewardPerLiquidity: 1
+            // Initial value of rewardPerLiquidity can be arbitrarily set to a non-zero value.
+            rewardPerLiquidity: type(uint256).max / 2
         });
 
         emit IncentiveCreated(token, rewardToken, msg.sender, incentiveId, rewardAmount, startTime, endTime);
@@ -111,13 +115,19 @@ contract StakingContractMainnet {
         _accrueRewards(incentive);
 
         if (newStartTime != 0) {
+
             if (newStartTime < block.timestamp) newStartTime = uint32(block.timestamp);
+
             incentive.lastRewardTime = newStartTime;
+
         }
 
         if (newEndTime != 0) {
+
             if (newEndTime < block.timestamp) newEndTime = uint32(block.timestamp);
+
             incentive.endTime = newEndTime;
+
         }
 
         if (incentive.lastRewardTime >= incentive.endTime) revert InvalidTimeFrame();
@@ -125,13 +135,17 @@ contract StakingContractMainnet {
         if (changeAmount > 0) {
             
             incentive.rewardRemaining += uint112(changeAmount);
+
             ERC20(incentive.rewardToken).safeTransferFrom(msg.sender, address(this), uint112(changeAmount));
 
         } else if (changeAmount < 0) {
 
             uint112 transferOut = uint112(-changeAmount);
+
             if (transferOut > incentive.rewardRemaining) transferOut = incentive.rewardRemaining;
+
             unchecked { incentive.rewardRemaining -= transferOut; }
+
             ERC20(incentive.rewardToken).safeTransfer(msg.sender, transferOut);
 
         }
@@ -140,12 +154,35 @@ contract StakingContractMainnet {
 
     }
 
-    function stakeToken(address token, uint112 amount) public {
+    function stakeAndSubscribeToIncentives(
+        address token,
+        uint112 amount,
+        uint256[] memory incentiveIds,
+        bool transferExistingRewards
+    ) external {
+
+        stakeToken(token, amount, transferExistingRewards);
+
+        uint256 n = incentiveIds.length;
+
+        for (uint256 i = 0; i < n; i = _increment(i)) {
+
+            subscribeToIncentive(incentiveIds[i]);
+
+        }
+
+    }
+
+    function stakeToken(address token, uint112 amount, bool transferExistingRewards) public {
 
         _saferTransferFrom(token, amount);
 
         UserStake storage userStake = userStakes[msg.sender][token];
-    
+
+        uint112 previousLiquidity = userStake.liquidity;
+
+        userStake.liquidity += amount;
+
         uint256 n = userStake.subscribedIncentiveIds.countStoredUint24Values();
 
         for (uint256 i = 0; i < n; i = _increment(i)) { // Loop through already subscribed incentives.
@@ -156,36 +193,31 @@ contract StakingContractMainnet {
 
             _accrueRewards(incentive);
 
-            _claimReward(incentive, incentiveId, userStake.liquidity);
+            if (transferExistingRewards) {
+
+                _claimReward(incentive, incentiveId, previousLiquidity);
+
+            } else {
+
+                _saveReward(incentive, incentiveId, previousLiquidity, userStake.liquidity);
+
+            }
 
             incentive.liquidityStaked += amount;
 
         }
 
-        userStake.liquidity += amount;
-
         emit Stake(token, msg.sender, amount);
 
     }
 
-    function stakeAndSubscribeToIncentives(address token, uint112 amount, uint256[] memory incentiveIds) external {
-
-        stakeToken(token, amount);
-
-        uint256 n = incentiveIds.length;
-        for (uint256 i = 0; i < n; i = _increment(i)) {
-            subscribeToIncentive(incentiveIds[i]);
-        }
-
-    }
-
-    function unstakeToken(address token, uint112 amount) external {
+    function unstakeToken(address token, uint112 amount, bool transferExistingRewards) external {
 
         UserStake storage userStake = userStakes[msg.sender][token];
 
-        if (amount > userStake.liquidity) amount = userStake.liquidity;
+        uint112 previousLiquidity = userStake.liquidity;
 
-        unchecked { userStake.liquidity -= amount; }
+        userStake.liquidity -= amount;
 
         uint256 n = userStake.subscribedIncentiveIds.countStoredUint24Values();
 
@@ -197,7 +229,15 @@ contract StakingContractMainnet {
 
             _accrueRewards(incentive);
 
-            _claimReward(incentive, incentiveId, userStake.liquidity);
+            if (transferExistingRewards || userStake.liquidity == 0) {
+
+                _claimReward(incentive, incentiveId, previousLiquidity);
+
+            } else {
+
+                _saveReward(incentive, incentiveId, previousLiquidity, userStake.liquidity);
+
+            }
 
             unchecked { incentive.liquidityStaked -= amount; }
 
@@ -256,32 +296,9 @@ contract StakingContractMainnet {
     }
 
     function accrueRewards(uint256 incentiveId) external {
+
         _accrueRewards(incentives[incentiveId]);
-    }
 
-    function _accrueRewards(Incentive storage incentive) internal {
-        unchecked {
-
-            uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
-
-            if (
-                incentive.liquidityStaked > 0 &&
-                incentive.lastRewardTime < maxTime
-            ) {
-                
-                uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
-                uint256 passedTime = maxTime - incentive.lastRewardTime;
-                uint256 reward = uint256(incentive.rewardRemaining) * passedTime / totalTime;
-                incentive.rewardPerLiquidity += reward * type(uint112).max / incentive.liquidityStaked;
-                incentive.rewardRemaining -= uint112(reward);
-                incentive.lastRewardTime = uint32(maxTime);
-
-            } else if (incentive.liquidityStaked == 0) {
-                
-                incentive.lastRewardTime = uint32(maxTime);
-
-            }
-        }
     }
 
     function claimRewards(uint256[] calldata incentiveIds) external returns (uint256[] memory rewards) {
@@ -302,15 +319,40 @@ contract StakingContractMainnet {
 
     }
 
+    function _accrueRewards(Incentive storage incentive) internal {
+        unchecked {
+
+            uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
+
+            if (
+                incentive.liquidityStaked > 0 &&
+                incentive.lastRewardTime < maxTime
+            ) {
+                
+                uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
+
+                uint256 passedTime = maxTime - incentive.lastRewardTime;
+
+                uint256 reward = uint256(incentive.rewardRemaining) * passedTime / totalTime;
+
+                // Increments of less than type(uint224).max - overflow is unrealistic.
+                incentive.rewardPerLiquidity += reward * type(uint112).max / incentive.liquidityStaked;
+
+                incentive.rewardRemaining -= uint112(reward);
+
+                incentive.lastRewardTime = uint32(maxTime);
+
+            } else if (incentive.liquidityStaked == 0) {
+                
+                incentive.lastRewardTime = uint32(maxTime);
+
+            }
+        }
+    }
+
     function _claimReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal returns (uint256 reward) {
 
-        if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert NotSubscribed();
-
-        uint256 rewardPerLiquidity;
-        
-        unchecked {rewardPerLiquidity = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId];}
-
-        reward = FullMath.mulDiv(rewardPerLiquidity, usersLiquidity, type(uint112).max);
+        reward = _calculateReward(incentive, incentiveId, usersLiquidity);
 
         rewardPerLiquidityLast[msg.sender][incentiveId] = incentive.rewardPerLiquidity;
 
@@ -318,29 +360,66 @@ contract StakingContractMainnet {
 
     }
 
-    function _saferTransferFrom(address token, uint256 amount) internal {
-        if (token.code.length == 0) revert NoToken();
-        ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+    function _saveReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity, uint112 newLiquidity) internal returns (uint256 reward) {
+
+        reward = _calculateReward(incentive, incentiveId, usersLiquidity);
+
+        uint256 rewardPerLiquidityDifference = reward * type(uint112).max / newLiquidity;
+
+        rewardPerLiquidityLast[msg.sender][incentiveId] = incentive.rewardPerLiquidity - rewardPerLiquidityDifference;
+
     }
 
-    function _increment(uint256 i) internal pure returns(uint256) {
-        unchecked {
-            return i + 1;
-        }
+    function _calculateReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal returns (uint256 reward) {
+
+        if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert NotSubscribed();
+
+        uint256 rewardPerLiquidity;
+
+        unchecked {rewardPerLiquidity = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId];}
+
+        reward = FullMath.mulDiv(rewardPerLiquidity, usersLiquidity, type(uint112).max);
+
+    }
+
+    function _saferTransferFrom(address token, uint256 amount) internal {
+
+        if (token.code.length == 0) revert NoToken();
+
+        ERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+
+    }
+
+    function _increment(uint256 i) internal pure returns (uint256) {
+
+        unchecked { return i + 1; }
+
     }
 
     function batch(bytes[] calldata datas) external {
+
         uint256 n = datas.length;
+
         for (uint256 i = 0; i < n; i = _increment(i)) {
+
             (bool success, bytes memory result) = address(this).delegatecall(datas[i]);
+
             if (!success) {
+
                 if (result.length < 68) revert();
+
                 assembly {
+
                     result := add(result, 0x04)
+
                 }
+ 
                 revert(abi.decode(result, (string)));
+ 
             }
+ 
         }
+
     }
 
 }
