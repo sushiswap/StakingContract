@@ -3,6 +3,7 @@ pragma solidity 0.8.11;
 
 import "lib/solmate/src/utils/SafeTransferLib.sol";
 import "./libraries/PackedUint144.sol";
+import "./libraries/FullMath.sol";
 import "./test/Console.sol";
 
 /* 
@@ -34,6 +35,7 @@ contract StakingContractMainnet {
     mapping(uint256 => Incentive) public incentives;
 
     /// @dev rewardPerLiquidityLast[user][incentiveId]
+    /// @dev Semantic overload: if value is zero user isn't subscribed to the incentive.
     mapping(address => mapping(uint256 => uint256)) public rewardPerLiquidityLast;
 
     /// @dev userStakes[user][stakedToken]
@@ -304,10 +306,11 @@ contract StakingContractMainnet {
 
         if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert NotSubscribed();
 
-        unchecked {
-            uint256 rewardPerLiquidity = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId];
-            reward = rewardPerLiquidity * usersLiquidity / type(uint112).max; // use safe mulDiv that handles phantom overflow
-        }
+        uint256 rewardPerLiquidity;
+        
+        unchecked {rewardPerLiquidity = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId];}
+
+        reward = FullMath.mulDiv(rewardPerLiquidity, usersLiquidity, type(uint112).max);
 
         rewardPerLiquidityLast[msg.sender][incentiveId] = incentive.rewardPerLiquidity;
 
