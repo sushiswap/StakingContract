@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.11;
 
-import "lib/solmate/src/utils/SafeTransferLib.sol";
+import "../lib/solmate/src/utils/SafeTransferLib.sol";
 import "./libraries/PackedUint144.sol";
 import "./libraries/FullMath.sol";
-import "./test/Console.sol";
 
 /* 
     Permissionless staking contract that allows any number of incentives to be running for any token (erc20).
@@ -62,6 +61,7 @@ contract StakingContractMainnet {
     event Unstake(address indexed token, address indexed user, uint256 amount);
     event Subscribe(uint256 indexed id, address indexed user);
     event Unsubscribe(uint256 indexed id, address indexed user);
+    event Claim(uint256 indexed id, address indexed user, uint256 amount);
 
     function createIncentive(
         address token,
@@ -354,6 +354,8 @@ contract StakingContractMainnet {
 
         ERC20(incentive.rewardToken).safeTransfer(msg.sender, reward);
 
+        emit Claim(incentiveId, msg.sender, reward);
+
     }
 
     // We offset the rewardPerLiquidityLast snapshot so that the current reward is included next time we call _claimReward.
@@ -367,7 +369,7 @@ contract StakingContractMainnet {
 
     }
 
-    function _calculateReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal returns (uint256 reward) {
+    function _calculateReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal view returns (uint256 reward) {
 
         if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert NotSubscribed();
 
