@@ -71,6 +71,8 @@ contract CreateIncentiveTest is TestSetup {
         _accrueRewards(futureIncentive);
         vm.warp(block.timestamp + step);
         _accrueRewards(futureIncentive);
+        _accrueRewards(0);
+        _accrueRewards(stakingContract.incentiveCount() + 1);
     }
 
     function testClaimRewards0() public {
@@ -156,9 +158,10 @@ contract CreateIncentiveTest is TestSetup {
         assertEq(reward, 0);
     }
 
-    function testFailStakeAndSubscribe(uint112 amount) public {
+    function testFalseStakeAndSubscribe(uint112 amount) public {
         _stake(address(tokenA), amount, johnDoe, true);
         _subscribeToIncentive(0, johnDoe);
+        _subscribeToIncentive(stakingContract.incentiveCount() + 1, johnDoe);
     }
 
     function testStakeInvalidToken() public {
