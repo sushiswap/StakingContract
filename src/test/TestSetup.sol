@@ -276,7 +276,7 @@ contract TestSetup is DSTest {
             incentive.liquidityStaked > 0 &&
             incentive.lastRewardTime < maxTime
         ) {
-            (rewardPerLiquidity, rewardRemaining, lastRewardTime) = _calculateAccureChange(incentiveId);
+            (rewardPerLiquidity, rewardRemaining, lastRewardTime) = _calculateAccrueChange(incentiveId);
         } else {
             rewardPerLiquidity = incentive.rewardPerLiquidity;
             rewardRemaining = incentive.rewardRemaining;
@@ -300,7 +300,7 @@ contract TestSetup is DSTest {
         assertEq(updatedIncentive.rewardRemaining, rewardRemaining);
     }
 
-    function _calculateAccureChange(uint256 incentiveId) public returns (uint256 rewardPerLiquidity, uint256 rewardRemaining, uint256 lastRewardTime) {
+    function _calculateAccrueChange(uint256 incentiveId) public returns (uint256 rewardPerLiquidity, uint256 rewardRemaining, uint256 lastRewardTime) {
         StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
         uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
         if (totalTime == 0 || incentive.liquidityStaked == 0 || block.timestamp < incentive.lastRewardTime) {
@@ -341,7 +341,7 @@ contract TestSetup is DSTest {
 
     function _calculateReward(uint256 incentiveId, address from) internal returns (uint256 rplLast, uint256 newRewardPerLiquidity, uint256 reward) {
         StakingContractMainnet.Incentive memory incentive = _getIncentive(incentiveId);
-        (newRewardPerLiquidity,,) = _calculateAccureChange(incentiveId);
+        (newRewardPerLiquidity,,) = _calculateAccrueChange(incentiveId);
         uint256 usersLiquidity = _getUsersLiquidityStaked(from, incentive.token);
         rplLast = stakingContract.rewardPerLiquidityLast(from, incentiveId);
         if (rplLast != 0) {
