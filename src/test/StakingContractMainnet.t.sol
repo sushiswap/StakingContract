@@ -13,6 +13,10 @@ contract CreateIncentiveTest is TestSetup {
         _createIncentive(address(tokenA), address(tokenB), amount, startTime, endTime);
     }
 
+    function testFailCreateIncentiveInvalidRewardToken(uint32 startTime, uint32 endTime) public {
+        _createIncentive(address(tokenA), zeroAddress, 1, startTime, endTime);
+    }
+
     function testUpdateIncentive(
         int112 changeAmount0,
         int112 changeAmount1,

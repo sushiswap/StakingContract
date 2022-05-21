@@ -2,6 +2,7 @@
 pragma solidity 0.8.11;
 
 import "lib/solmate/src/utils/SafeTransferLib.sol";
+import "lib/solmate/src/utils/ReentrancyGuard.sol";
 import "./libraries/PackedUint144.sol";
 import "./libraries/FullMath.sol";
 
@@ -12,7 +13,7 @@ import "./libraries/FullMath.sol";
     Users can deposit their assets into the contract and then subscribe to any of the available incentives, up to 6 per token.
  */
 
-contract StakingContractMainnet {
+contract StakingContractMainnet is ReentrancyGuard {
 
     using SafeTransferLib for ERC20;
     using PackedUint144 for uint144;
@@ -47,14 +48,6 @@ contract StakingContractMainnet {
         uint144 subscribedIncentiveIds; // Six packed uint24 values.
     }
 
-    uint256 internal unlocked = 1;
-    modifier lock() {
-      require(unlocked == 1, "LOCKED");
-      unlocked = 2;
-      _;
-      unlocked = 1;
-    }
-
     error InvalidTimeFrame();
     error IncentiveOverflow();
     error AlreadySubscribed();
@@ -79,11 +72,7 @@ contract StakingContractMainnet {
         uint112 rewardAmount,
         uint32 startTime,
         uint32 endTime
-    ) external lock returns (uint256 incentiveId) {
-
-        if (token != address(token)) revert InvalidInput();
-
-        if (rewardToken != address(rewardToken)) revert InvalidInput();
+    ) external nonReentrant returns (uint256 incentiveId) {
 
         if (rewardAmount <= 0) revert InvalidInput();
 
@@ -118,7 +107,7 @@ contract StakingContractMainnet {
         int112 changeAmount,
         uint32 newStartTime,
         uint32 newEndTime
-    ) external lock {
+    ) external nonReentrant {
 
         Incentive storage incentive = incentives[incentiveId];
 
@@ -171,7 +160,7 @@ contract StakingContractMainnet {
         uint112 amount,
         uint256[] memory incentiveIds,
         bool transferExistingRewards
-    ) external lock {
+    ) external nonReentrant {
 
         stakeToken(token, amount, transferExistingRewards);
 
@@ -185,9 +174,7 @@ contract StakingContractMainnet {
 
     }
 
-    function stakeToken(address token, uint112 amount, bool transferExistingRewards) public lock {
-
-        if (token != address(token)) revert InvalidInput();
+    function stakeToken(address token, uint112 amount, bool transferExistingRewards) public nonReentrant {
 
         if (amount <= 0) revert InvalidInput();
 
@@ -227,7 +214,7 @@ contract StakingContractMainnet {
 
     }
 
-    function unstakeToken(address token, uint112 amount, bool transferExistingRewards) external lock {
+    function unstakeToken(address token, uint112 amount, bool transferExistingRewards) external nonReentrant {
 
         UserStake storage userStake = userStakes[msg.sender][token];
 
@@ -267,7 +254,7 @@ contract StakingContractMainnet {
 
     }
 
-    function subscribeToIncentive(uint256 incentiveId) public lock {
+    function subscribeToIncentive(uint256 incentiveId) public nonReentrant {
 
         if (incentiveId > incentiveCount || incentiveId <= 0) revert InvalidInput();
 
@@ -292,7 +279,7 @@ contract StakingContractMainnet {
     }
 
     /// @param incentiveIndex ∈ [0,5]
-    function unsubscribeFromIncentive(address token, uint256 incentiveIndex, bool ignoreRewards) external lock {
+    function unsubscribeFromIncentive(address token, uint256 incentiveIndex, bool ignoreRewards) external nonReentrant {
 
         UserStake storage userStake = userStakes[msg.sender][token];
 
@@ -319,7 +306,7 @@ contract StakingContractMainnet {
 
     }
 
-    function accrueRewards(uint256 incentiveId) external lock {
+    function accrueRewards(uint256 incentiveId) external nonReentrant {
 
         if (incentiveId > incentiveCount || incentiveId <= 0) revert InvalidInput();
 
@@ -327,7 +314,7 @@ contract StakingContractMainnet {
 
     }
 
-    function claimRewards(uint256[] calldata incentiveIds) external lock returns (uint256[] memory rewards) {
+    function claimRewards(uint256[] calldata incentiveIds) external nonReentrant returns (uint256[] memory rewards) {
 
         uint256 n = incentiveIds.length;
 
