@@ -221,12 +221,13 @@ contract CreateIncentiveTest is TestSetup {
       assertEq(subscriptions, pastIncentive);
     }
 
-    function testFailBatch() public {
+    function testFailedBatchRaisesProperError() public {
         bytes[] memory data = new bytes[](3);
         data[0] = abi.encodeCall(stakingContract.stakeToken, (address(tokenA), 1, true));
         data[1] = abi.encodeCall(stakingContract.subscribeToIncentive, (ongoingIncentive));
         data[2] = abi.encodeCall(stakingContract.subscribeToIncentive, (ongoingIncentive));
         vm.prank(johnDoe);
+        vm.expectRevert(alreadySubscribed);
         stakingContract.batch(data);
     }
 
