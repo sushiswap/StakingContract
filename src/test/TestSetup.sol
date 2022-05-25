@@ -173,13 +173,6 @@ contract TestSetup is DSTest {
         uint256 stakingContractBalanceBefore = Token(token).balanceOf(address(stakingContract));
         uint256 userLiquidityBefore = _getUsersLiquidityStaked(from, token);
 
-        if (amount <= 0) {
-          vm.expectRevert(invalidInput);
-          vm.prank(from);
-          stakingContract.stakeToken(token, amount, transferRewards);
-          return;
-        }
-
         if (amount > userBalanceBefore) {
             vm.expectRevert(overflow);
             vm.prank(from);
@@ -265,6 +258,47 @@ contract TestSetup is DSTest {
         } else {
           assertEq(incentiveAfter.lastRewardTime, incentive.lastRewardTime);
         }
+    }
+
+    function _stakeAndSubscribeToIncentives(address token, uint112 amount, uint256[] memory incentiveIds, address from, bool transferRewards) public {
+        uint256 userBalanceBefore = Token(token).balanceOf(from);
+        uint256 stakingContractBalanceBefore = Token(token).balanceOf(address(stakingContract));
+        uint256 userLiquidityBefore = _getUsersLiquidityStaked(from, token);
+        uint144 subscribedIncentivesBefore = _getUsersSubscribedIncentives(from, token);
+
+        if (amount > userBalanceBefore) {
+            vm.expectRevert(overflow);
+            vm.prank(from);
+            stakingContract.stakeAndSubscribeToIncentives(token, amount, incentiveIds, transferRewards);
+            return;
+        }
+
+        if (amount > type(uint112).max - userLiquidityBefore) {
+            vm.expectRevert(overflow);
+            vm.prank(from);
+            stakingContract.stakeAndSubscribeToIncentives(token, amount, incentiveIds, transferRewards);
+            return;
+        }
+
+        if (amount == 0) {
+          vm.prank(from);
+          vm.expectRevert(bytes('no liquidity staked for user'));
+          stakingContract.stakeAndSubscribeToIncentives(token, amount, incentiveIds, transferRewards);
+          return;
+        }
+
+        vm.prank(from);
+        stakingContract.stakeAndSubscribeToIncentives(token, amount, incentiveIds, transferRewards);
+
+        uint256 userBalanceAfter = Token(token).balanceOf(from);
+        uint256 stakingContractBalanceAfter = Token(token).balanceOf(address(stakingContract));
+        uint256 userLiquidityAfter = _getUsersLiquidityStaked(from, token);
+        uint144 subscribedIncentivesAfter = _getUsersSubscribedIncentives(from, token);
+
+        assertEq(userBalanceBefore - amount, userBalanceAfter);
+        assertEq(userLiquidityBefore + amount, userLiquidityAfter);
+        assertEq(stakingContractBalanceBefore + amount, stakingContractBalanceAfter);
+        assertLt(subscribedIncentivesBefore, subscribedIncentivesAfter);
     }
 
     function _accrueRewards(uint256 incentiveId) public {

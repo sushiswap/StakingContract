@@ -43,11 +43,18 @@ contract CreateIncentiveTest is TestSetup {
         _subscribeToIncentive(ongoingIncentive, johnDoe);
     }
 
-    function testStakeAndSubscribe(uint112 amount) public {
+    function testStakeAndSubscribeSeparate(uint112 amount) public {
         _stake(address(tokenA), amount, johnDoe, true);
         _subscribeToIncentive(pastIncentive, johnDoe);
         _subscribeToIncentive(futureIncentive, johnDoe);
         _subscribeToIncentive(ongoingIncentive, johnDoe);
+    }
+
+    function testStakeAndSubscribe(uint112 amount) public {
+      uint256[] memory idsToSubscribe = new uint256[](2);
+      idsToSubscribe[0] = pastIncentive;
+      idsToSubscribe[1] = ongoingIncentive;
+      _stakeAndSubscribeToIncentives(address(tokenA), amount, idsToSubscribe, johnDoe, true);
     }
 
     function testAccrue(uint112 amount) public {
@@ -193,6 +200,25 @@ contract CreateIncentiveTest is TestSetup {
         (uint112 liquidity, uint144 subscriptions) = stakingContract.userStakes(johnDoe, address(tokenA));
         assertEq(liquidity, 1);
         assertEq(subscriptions, ongoingIncentive);
+    }
+
+    function testBatch2() public {
+      bytes[] memory data = new bytes[](3);
+      uint256[] memory idsToSubscribe = new uint256[](3);
+      idsToSubscribe[0] = pastIncentive;
+      idsToSubscribe[1] = ongoingIncentive;
+      idsToSubscribe[2] = futureIncentive;
+
+      data[0] = abi.encodeCall(stakingContract.stakeAndSubscribeToIncentives, (address(tokenA), 1, idsToSubscribe, true));
+      data[1] = abi.encodeCall(stakingContract.unsubscribeFromIncentive, (address(tokenA), 1, false));
+      data[2] = abi.encodeCall(stakingContract.unsubscribeFromIncentive, (address(tokenA), 0, false));
+
+      vm.prank(johnDoe);
+      stakingContract.batch(data);
+      (uint112 liquidity, uint144 subscriptions) = stakingContract.userStakes(johnDoe, address(tokenA));
+
+      assertEq(liquidity, 1);
+      assertEq(subscriptions, pastIncentive);
     }
 
     function testFailBatch() public {

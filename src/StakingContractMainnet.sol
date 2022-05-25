@@ -160,7 +160,7 @@ contract StakingContractMainnet is ReentrancyGuard {
         uint112 amount,
         uint256[] memory incentiveIds,
         bool transferExistingRewards
-    ) external nonReentrant {
+    ) external {
 
         stakeToken(token, amount, transferExistingRewards);
 
@@ -175,8 +175,6 @@ contract StakingContractMainnet is ReentrancyGuard {
     }
 
     function stakeToken(address token, uint112 amount, bool transferExistingRewards) public nonReentrant {
-
-        if (amount <= 0) revert InvalidInput();
 
         _saferTransferFrom(token, amount);
 
