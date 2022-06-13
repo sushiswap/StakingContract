@@ -57,6 +57,9 @@ contract StakingContractMainnet is ReentrancyGuard {
     error NoToken();
     error InvalidInput();
     error BatchError(bytes innerErorr);
+    error InsufficientStakedAmount();
+    error NotStaked();
+    error InvalidIndex();
 
     event IncentiveCreated(address indexed token, address indexed rewardToken, address indexed creator, uint256 id, uint256 amount, uint256 startTime, uint256 endTime);
     event IncentiveUpdated(uint256 indexed id, int256 changeAmount, uint256 newStartTime, uint256 newEndTime);
@@ -218,7 +221,7 @@ contract StakingContractMainnet is ReentrancyGuard {
 
         uint112 previousLiquidity = userStake.liquidity;
 
-        require(previousLiquidity >= amount, 'user does not have the amount staked');
+        if (amount > previousLiquidity) revert InsufficientStakedAmount();
 
         userStake.liquidity -= amount;
 
@@ -260,7 +263,7 @@ contract StakingContractMainnet is ReentrancyGuard {
 
         Incentive storage incentive = incentives[incentiveId];
 
-        require(userStakes[msg.sender][incentive.token].liquidity > 0, 'no liquidity staked for user');
+        if (userStakes[msg.sender][incentive.token].liquidity <= 0) revert NotStaked();
 
         _accrueRewards(incentive);
 
@@ -281,7 +284,7 @@ contract StakingContractMainnet is ReentrancyGuard {
 
         UserStake storage userStake = userStakes[msg.sender][token];
 
-        require(incentiveIndex < userStake.subscribedIncentiveIds.countStoredUint24Values(), 'incentive index greater than count');
+        if (incentiveIndex >= userStake.subscribedIncentiveIds.countStoredUint24Values()) revert InvalidIndex();
 
         uint256 incentiveId = userStake.subscribedIncentiveIds.getUint24ValueAt(incentiveIndex);
 

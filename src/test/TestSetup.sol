@@ -31,6 +31,9 @@ contract TestSetup is DSTest {
     bytes4 alreadySubscribed = bytes4(keccak256("AlreadySubscribed()"));
     bytes4 noToken = bytes4(keccak256("NoToken()"));
     bytes4 invalidInput = bytes4(keccak256("InvalidInput()"));
+    bytes4 insufficientStakedAmount = bytes4(keccak256("InsufficientStakedAmount"));
+    bytes4 notStaked = bytes4(keccak256("NotStaked()"));
+    bytes4 invalidIndex = bytes4(keccak256("InvalidIndex()"));
     bytes4 panic = 0x4e487b71;
     bytes overflow = abi.encodePacked(panic, bytes32(uint256(0x11)));
 
@@ -204,7 +207,7 @@ contract TestSetup is DSTest {
         uint256 userLiquidityBefore = _getUsersLiquidityStaked(from, token);
 
         if (amount > userLiquidityBefore) {
-            vm.expectRevert(overflow);
+            vm.expectRevert(insufficientStakedAmount);
             vm.prank(from);
             stakingContract.unstakeToken(token, amount, transferRewards);
             return;
@@ -240,7 +243,7 @@ contract TestSetup is DSTest {
 
         if (liquidity == 0) {
           vm.prank(from);
-          vm.expectRevert(bytes('no liquidity staked for user'));
+          vm.expectRevert(notStaked);
           return stakingContract.subscribeToIncentive(incentiveId);
         }
 
@@ -282,7 +285,7 @@ contract TestSetup is DSTest {
 
         if (amount == 0) {
           vm.prank(from);
-          vm.expectRevert(bytes('no liquidity staked for user'));
+          vm.expectRevert(notStaked);
           stakingContract.stakeAndSubscribeToIncentives(token, amount, incentiveIds, transferRewards);
           return;
         }
