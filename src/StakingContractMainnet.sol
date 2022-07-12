@@ -2,18 +2,18 @@
 pragma solidity 0.8.11;
 
 import "lib/solmate/src/utils/SafeTransferLib.sol";
+import "lib/solmate/src/utils/ReentrancyGuard.sol";
 import "./libraries/PackedUint144.sol";
 import "./libraries/FullMath.sol";
-import "./test/Console.sol";
 
-/* 
+/*
     Permissionless staking contract that allows any number of incentives to be running for any token (erc20).
     Incentives can be created by anyone, the total reward amount must be sent at creation.
     Incentives can be updated (change reward rate / duration).
     Users can deposit their assets into the contract and then subscribe to any of the available incentives, up to 6 per token.
  */
 
-contract StakingContractMainnet {
+contract StakingContractMainnet is ReentrancyGuard {
 
     using SafeTransferLib for ERC20;
     using PackedUint144 for uint144;
@@ -42,7 +42,7 @@ contract StakingContractMainnet {
     mapping(address => mapping(address => UserStake)) public userStakes;
 
     // Incentive count won't be greater than type(uint24).max on mainnet.
-    // This means we can use uint24 vlaues to identify incentives.
+    // This means we can use uint24 values to identify incentives.
     struct UserStake {
         uint112 liquidity;
         uint144 subscribedIncentiveIds; // Six packed uint24 values.
@@ -55,6 +55,11 @@ contract StakingContractMainnet {
     error NotSubscribed();
     error OnlyCreator();
     error NoToken();
+    error InvalidInput();
+    error BatchError(bytes innerErorr);
+    error InsufficientStakedAmount();
+    error NotStaked();
+    error InvalidIndex();
 
     event IncentiveCreated(address indexed token, address indexed rewardToken, address indexed creator, uint256 id, uint256 amount, uint256 startTime, uint256 endTime);
     event IncentiveUpdated(uint256 indexed id, int256 changeAmount, uint256 newStartTime, uint256 newEndTime);
@@ -62,6 +67,7 @@ contract StakingContractMainnet {
     event Unstake(address indexed token, address indexed user, uint256 amount);
     event Subscribe(uint256 indexed id, address indexed user);
     event Unsubscribe(uint256 indexed id, address indexed user);
+    event Claim(uint256 indexed id, address indexed user, uint256 amount);
 
     function createIncentive(
         address token,
@@ -69,7 +75,9 @@ contract StakingContractMainnet {
         uint112 rewardAmount,
         uint32 startTime,
         uint32 endTime
-    ) external returns (uint256 incentiveId) {
+    ) external nonReentrant returns (uint256 incentiveId) {
+
+        if (rewardAmount <= 0) revert InvalidInput();
 
         if (startTime < block.timestamp) startTime = uint32(block.timestamp);
 
@@ -102,7 +110,7 @@ contract StakingContractMainnet {
         int112 changeAmount,
         uint32 newStartTime,
         uint32 newEndTime
-    ) external {
+    ) external nonReentrant {
 
         Incentive storage incentive = incentives[incentiveId];
 
@@ -129,7 +137,7 @@ contract StakingContractMainnet {
         if (incentive.lastRewardTime >= incentive.endTime) revert InvalidTimeFrame();
 
         if (changeAmount > 0) {
-            
+
             incentive.rewardRemaining += uint112(changeAmount);
 
             ERC20(incentive.rewardToken).safeTransferFrom(msg.sender, address(this), uint112(changeAmount));
@@ -169,7 +177,7 @@ contract StakingContractMainnet {
 
     }
 
-    function stakeToken(address token, uint112 amount, bool transferExistingRewards) public {
+    function stakeToken(address token, uint112 amount, bool transferExistingRewards) public nonReentrant {
 
         _saferTransferFrom(token, amount);
 
@@ -207,11 +215,13 @@ contract StakingContractMainnet {
 
     }
 
-    function unstakeToken(address token, uint112 amount, bool transferExistingRewards) external {
+    function unstakeToken(address token, uint112 amount, bool transferExistingRewards) external nonReentrant {
 
         UserStake storage userStake = userStakes[msg.sender][token];
 
         uint112 previousLiquidity = userStake.liquidity;
+
+        if (amount > previousLiquidity) revert InsufficientStakedAmount();
 
         userStake.liquidity -= amount;
 
@@ -235,7 +245,7 @@ contract StakingContractMainnet {
 
             }
 
-            unchecked { incentive.liquidityStaked -= amount; }
+            incentive.liquidityStaked -= amount;
 
         }
 
@@ -245,11 +255,15 @@ contract StakingContractMainnet {
 
     }
 
-    function subscribeToIncentive(uint256 incentiveId) public {
+    function subscribeToIncentive(uint256 incentiveId) public nonReentrant {
+
+        if (incentiveId > incentiveCount || incentiveId <= 0) revert InvalidInput();
 
         if (rewardPerLiquidityLast[msg.sender][incentiveId] != 0) revert AlreadySubscribed();
 
         Incentive storage incentive = incentives[incentiveId];
+
+        if (userStakes[msg.sender][incentive.token].liquidity <= 0) revert NotStaked();
 
         _accrueRewards(incentive);
 
@@ -266,14 +280,16 @@ contract StakingContractMainnet {
     }
 
     /// @param incentiveIndex ∈ [0,5]
-    function unsubscribeFromIncentive(address token, uint256 incentiveIndex, bool ignoreRewards) external {
+    function unsubscribeFromIncentive(address token, uint256 incentiveIndex, bool ignoreRewards) external nonReentrant {
 
         UserStake storage userStake = userStakes[msg.sender][token];
+
+        if (incentiveIndex >= userStake.subscribedIncentiveIds.countStoredUint24Values()) revert InvalidIndex();
 
         uint256 incentiveId = userStake.subscribedIncentiveIds.getUint24ValueAt(incentiveIndex);
 
         if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert AlreadyUnsubscribed();
-        
+
         Incentive storage incentive = incentives[incentiveId];
 
         _accrueRewards(incentive);
@@ -283,7 +299,7 @@ contract StakingContractMainnet {
 
         rewardPerLiquidityLast[msg.sender][incentiveId] = 0;
 
-        unchecked { incentive.liquidityStaked -= userStake.liquidity; }
+        incentive.liquidityStaked -= userStake.liquidity;
 
         userStake.subscribedIncentiveIds = userStake.subscribedIncentiveIds.removeUint24ValueAt(incentiveIndex);
 
@@ -291,19 +307,23 @@ contract StakingContractMainnet {
 
     }
 
-    function accrueRewards(uint256 incentiveId) external {
+    function accrueRewards(uint256 incentiveId) external nonReentrant {
+
+        if (incentiveId > incentiveCount || incentiveId <= 0) revert InvalidInput();
 
         _accrueRewards(incentives[incentiveId]);
 
     }
 
-    function claimRewards(uint256[] calldata incentiveIds) external returns (uint256[] memory rewards) {
+    function claimRewards(uint256[] calldata incentiveIds) external nonReentrant returns (uint256[] memory rewards) {
 
         uint256 n = incentiveIds.length;
 
         rewards = new uint256[](n);
 
         for(uint256 i = 0; i < n; i = _increment(i)) {
+
+            if (incentiveIds[i] > incentiveCount || incentiveIds[i] <= 0) revert InvalidInput();
 
             Incentive storage incentive = incentives[incentiveIds[i]];
 
@@ -317,15 +337,19 @@ contract StakingContractMainnet {
 
     function _accrueRewards(Incentive storage incentive) internal {
 
+        uint256 lastRewardTime = incentive.lastRewardTime;
+
+        uint256 endTime = incentive.endTime;
+
         unchecked {
 
-            uint256 maxTime = block.timestamp < incentive.endTime ? block.timestamp : incentive.endTime;
+            uint256 maxTime = block.timestamp < endTime ? block.timestamp : endTime;
 
-            if (incentive.liquidityStaked > 0 && incentive.lastRewardTime < maxTime) {
-                
-                uint256 totalTime = incentive.endTime - incentive.lastRewardTime;
+            if (incentive.liquidityStaked > 0 && lastRewardTime < maxTime) {
 
-                uint256 passedTime = maxTime - incentive.lastRewardTime;
+                uint256 totalTime = endTime - lastRewardTime;
+
+                uint256 passedTime = maxTime - lastRewardTime;
 
                 uint256 reward = uint256(incentive.rewardRemaining) * passedTime / totalTime;
 
@@ -336,8 +360,8 @@ contract StakingContractMainnet {
 
                 incentive.lastRewardTime = uint32(maxTime);
 
-            } else if (incentive.liquidityStaked == 0) {
-                
+            } else if (incentive.liquidityStaked == 0 && lastRewardTime < block.timestamp) {
+
                 incentive.lastRewardTime = uint32(maxTime);
 
             }
@@ -354,6 +378,8 @@ contract StakingContractMainnet {
 
         ERC20(incentive.rewardToken).safeTransfer(msg.sender, reward);
 
+        emit Claim(incentiveId, msg.sender, reward);
+
     }
 
     // We offset the rewardPerLiquidityLast snapshot so that the current reward is included next time we call _claimReward.
@@ -367,13 +393,15 @@ contract StakingContractMainnet {
 
     }
 
-    function _calculateReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal returns (uint256 reward) {
+    function _calculateReward(Incentive storage incentive, uint256 incentiveId, uint112 usersLiquidity) internal view returns (uint256 reward) {
 
-        if (rewardPerLiquidityLast[msg.sender][incentiveId] == 0) revert NotSubscribed();
+        uint256 userRewardPerLiquidtyLast = rewardPerLiquidityLast[msg.sender][incentiveId];
+
+        if (userRewardPerLiquidtyLast == 0) revert NotSubscribed();
 
         uint256 rewardPerLiquidityDelta;
 
-        unchecked { rewardPerLiquidityDelta = incentive.rewardPerLiquidity - rewardPerLiquidityLast[msg.sender][incentiveId]; }
+        unchecked { rewardPerLiquidityDelta = incentive.rewardPerLiquidity - userRewardPerLiquidtyLast; }
 
         reward = FullMath.mulDiv(rewardPerLiquidityDelta, usersLiquidity, type(uint112).max);
 
@@ -403,18 +431,10 @@ contract StakingContractMainnet {
 
             if (!success) {
 
-                if (result.length < 68) revert();
+                revert BatchError(result);
 
-                assembly {
-
-                    result := add(result, 0x04)
-
-                }
- 
-                revert(abi.decode(result, (string)));
- 
             }
- 
+
         }
 
     }

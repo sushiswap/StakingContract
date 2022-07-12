@@ -13,6 +13,10 @@ contract CreateIncentiveTest is TestSetup {
         _createIncentive(address(tokenA), address(tokenB), amount, startTime, endTime);
     }
 
+    function testFailCreateIncentiveInvalidRewardToken(uint32 startTime, uint32 endTime) public {
+        _createIncentive(address(tokenA), zeroAddress, 1, startTime, endTime);
+    }
+
     function testUpdateIncentive(
         int112 changeAmount0,
         int112 changeAmount1,
@@ -39,11 +43,18 @@ contract CreateIncentiveTest is TestSetup {
         _subscribeToIncentive(ongoingIncentive, johnDoe);
     }
 
-    function testStakeAndSubscribe(uint112 amount) public {
+    function testStakeAndSubscribeSeparate(uint112 amount) public {
         _stake(address(tokenA), amount, johnDoe, true);
         _subscribeToIncentive(pastIncentive, johnDoe);
         _subscribeToIncentive(futureIncentive, johnDoe);
         _subscribeToIncentive(ongoingIncentive, johnDoe);
+    }
+
+    function testStakeAndSubscribe(uint112 amount) public {
+      uint256[] memory idsToSubscribe = new uint256[](2);
+      idsToSubscribe[0] = pastIncentive;
+      idsToSubscribe[1] = ongoingIncentive;
+      _stakeAndSubscribeToIncentives(address(tokenA), amount, idsToSubscribe, johnDoe, true);
     }
 
     function testAccrue(uint112 amount) public {
@@ -71,6 +82,8 @@ contract CreateIncentiveTest is TestSetup {
         _accrueRewards(futureIncentive);
         vm.warp(block.timestamp + step);
         _accrueRewards(futureIncentive);
+        _accrueRewards(0);
+        _accrueRewards(stakingContract.incentiveCount() + 1);
     }
 
     function testClaimRewards0() public {
@@ -156,9 +169,10 @@ contract CreateIncentiveTest is TestSetup {
         assertEq(reward, 0);
     }
 
-    function testFailStakeAndSubscribe(uint112 amount) public {
+    function testFalseStakeAndSubscribe(uint112 amount) public {
         _stake(address(tokenA), amount, johnDoe, true);
         _subscribeToIncentive(0, johnDoe);
+        _subscribeToIncentive(stakingContract.incentiveCount() + 1, johnDoe);
     }
 
     function testStakeInvalidToken() public {
@@ -188,12 +202,32 @@ contract CreateIncentiveTest is TestSetup {
         assertEq(subscriptions, ongoingIncentive);
     }
 
-    function testFailBatch() public {
+    function testBatch2() public {
+      bytes[] memory data = new bytes[](3);
+      uint256[] memory idsToSubscribe = new uint256[](3);
+      idsToSubscribe[0] = pastIncentive;
+      idsToSubscribe[1] = ongoingIncentive;
+      idsToSubscribe[2] = futureIncentive;
+
+      data[0] = abi.encodeCall(stakingContract.stakeAndSubscribeToIncentives, (address(tokenA), 1, idsToSubscribe, true));
+      data[1] = abi.encodeCall(stakingContract.unsubscribeFromIncentive, (address(tokenA), 1, false));
+      data[2] = abi.encodeCall(stakingContract.unsubscribeFromIncentive, (address(tokenA), 0, false));
+
+      vm.prank(johnDoe);
+      stakingContract.batch(data);
+      (uint112 liquidity, uint144 subscriptions) = stakingContract.userStakes(johnDoe, address(tokenA));
+
+      assertEq(liquidity, 1);
+      assertEq(subscriptions, pastIncentive);
+    }
+
+    function testFailedBatchRaisesProperError() public {
         bytes[] memory data = new bytes[](3);
         data[0] = abi.encodeCall(stakingContract.stakeToken, (address(tokenA), 1, true));
         data[1] = abi.encodeCall(stakingContract.subscribeToIncentive, (ongoingIncentive));
         data[2] = abi.encodeCall(stakingContract.subscribeToIncentive, (ongoingIncentive));
         vm.prank(johnDoe);
+        vm.expectRevert(alreadySubscribed);
         stakingContract.batch(data);
     }
 
