@@ -56,7 +56,7 @@ contract StakingContractMainnet is ReentrancyGuard {
     error OnlyCreator();
     error NoToken();
     error InvalidInput();
-    error BatchError(bytes innerErorr);
+    error BatchError(bytes innerError);
     error InsufficientStakedAmount();
     error NotStaked();
     error InvalidIndex();
